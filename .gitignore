@@ -8,10 +8,11 @@ node_modules/
 !.env.example
 vps-server/data/
 
-# Render artifacts
+# Render artifacts and local tool binaries
 output/
 cache/
 frames/
+tools/
 
 # Logs
 *.log

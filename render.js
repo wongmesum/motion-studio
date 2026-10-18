@@ -18,6 +18,8 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveFfmpegBinary } from './vps-server/ffmpeg.js';
+import { validateLocalAudioPath } from './vps-server/security/audio-policy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,6 +55,7 @@ const CONFIG = {
   framesDir: cli.framesDir || './frames/cli-job',
   htmlFile: cli.template || 'render-engine/templates/kinetic-text.html',
   audioFile: cli.audio || null,
+  audioPath: null,
   subtitleFile: cli.subtitles || null,
   lutFile: cli.lut || null,
   codec: cli.codec || process.env.RENDER_CODEC || 'h264',
@@ -223,8 +226,8 @@ async function encodeVideo() {
     '-i', framesPattern,
   ];
 
-  if (CONFIG.audioFile) {
-    args.push('-i', path.resolve(__dirname, CONFIG.audioFile));
+  if (CONFIG.audioPath) {
+    args.push('-i', CONFIG.audioPath);
   }
 
   // Video filter pipeline (LUT / Subtitles)
@@ -240,7 +243,7 @@ async function encodeVideo() {
   }
 
   // Audio filter pipeline (Loudnorm + Fade)
-  if (CONFIG.audioFile) {
+  if (CONFIG.audioPath) {
     const fadeOutStart = Math.max(0, CONFIG.duration - 1.5);
     args.push(
       '-af',
@@ -265,12 +268,15 @@ async function encodeVideo() {
 
   console.log('🎞️  Encoding dengan FFmpeg...');
   return new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', args);
+    const ff = spawn(resolveFfmpegBinary(), args);
     ff.stderr.on('data', (d) => {
       const line = d.toString();
       if (line.includes('frame=') || line.includes('Error')) {
         process.stderr.write(`\r   ${line.trim().slice(0, 90)}`);
       }
+    });
+    ff.on('error', (error) => {
+      reject(new Error(`Failed to start FFmpeg: ${error.message}`));
     });
     ff.on('close', (code) => {
       process.stderr.write('\n');
@@ -284,6 +290,11 @@ async function encodeVideo() {
 (async () => {
   const start = Date.now();
   try {
+    if (CONFIG.audioFile) {
+      CONFIG.audioPath = await validateLocalAudioPath(CONFIG.audioFile, {
+        allowedDirectories: [__dirname],
+      });
+    }
     await renderFrames();
     const outPath = await encodeVideo();
 
