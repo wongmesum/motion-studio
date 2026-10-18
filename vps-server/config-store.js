@@ -119,16 +119,30 @@ export function generateUserToken(prefix = 'ms_live') {
   return `${prefix}_${crypto.randomBytes(18).toString('hex')}`;
 }
 
+function hashUserToken(token) {
+  return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+function migrateUserToken(user = {}) {
+  if (!user.apiToken) return user;
+  const { apiToken, ...metadata } = user;
+  return {
+    ...metadata,
+    apiTokenHash: hashUserToken(apiToken),
+    maskedApiToken: maskSecret(apiToken),
+  };
+}
+
 export function maskSecret(secret = '') {
   if (!secret || secret.length < 8) return secret ? '••••••••' : '';
   return `${secret.slice(0, 6)}••••••••••••••••${secret.slice(-4)}`;
 }
 
 export function projectPublicUser(user = {}) {
-  const { apiToken: _apiToken, ...publicUser } = user;
+  const { apiToken: _apiToken, apiTokenHash: _apiTokenHash, ...publicUser } = user;
   return {
     ...publicUser,
-    maskedApiToken: maskSecret(user.apiToken),
+    maskedApiToken: user.maskedApiToken || maskSecret(user.apiToken),
   };
 }
 
@@ -305,7 +319,9 @@ export async function initConfigStore() {
       apiKey: key.apiKey || storedSecrets.vaultKeys?.[key.id] || '',
       providerId: isSupportedAiProvider(key.providerId) ? key.providerId : 'river',
     }));
-    memoryStore.users = Array.isArray(memoryStore.users) ? memoryStore.users : [];
+    memoryStore.users = Array.isArray(memoryStore.users)
+      ? memoryStore.users.map(migrateUserToken)
+      : [];
     memoryStore.auditLogs = Array.isArray(memoryStore.auditLogs) ? memoryStore.auditLogs : [];
   } catch {
     memoryStore = structuredClone(DEFAULT_STORE);
@@ -352,11 +368,16 @@ export async function saveConfigStore() {
   const keyVault = memoryStore.keyVault.map(({ apiKey: _apiKey, ...rest }) => rest);
   const { apiKey: _riverApiKey, ...riverConfig } = memoryStore.riverConfig || {};
 
+  // User tokens are stored as SHA-256 digests only; the plaintext never reaches disk.
+  const users = memoryStore.users.map(({ apiToken: _apiToken, ...rest }) =>
+    migrateUserToken({ ...rest, apiToken: _apiToken })
+  );
+
   await persistRuntimeSecrets(buildPersistedSecrets(memoryStore));
   await fs.writeFile(
     STORE_FILE,
     JSON.stringify(
-      { ...memoryStore, serviceKeys, aiProviders, keyVault, riverConfig },
+      { ...memoryStore, serviceKeys, aiProviders, keyVault, riverConfig, users },
       null,
       2
     ),
@@ -634,11 +655,11 @@ export async function listUsers() {
 export async function findUserByToken(token) {
   if (typeof token !== 'string' || token.length === 0) return null;
   const store = await initConfigStore();
-  return store.users.find((u) => {
-    if (typeof u.apiToken !== 'string') return false;
-    const provided = Buffer.from(token, 'utf8');
-    const expected = Buffer.from(u.apiToken, 'utf8');
-    return provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
+  const provided = Buffer.from(hashUserToken(token), 'hex');
+  return store.users.find((user) => {
+    if (!/^[a-f0-9]{64}$/i.test(user.apiTokenHash || '')) return false;
+    const expected = Buffer.from(user.apiTokenHash, 'hex');
+    return crypto.timingSafeEqual(provided, expected);
   }) || null;
 }
 
@@ -648,13 +669,15 @@ export async function createUser(userData, actor = 'Admin Dashboard') {
     throw new Error('Name and email are required');
   }
   const rolePrefix = userData.role === 'admin' ? 'ms_live_adm' : userData.role === 'engineer' ? 'ms_live_eng' : 'ms_live_usr';
+  const apiToken = userData.apiToken || generateUserToken(rolePrefix);
   const newUser = {
     id: `usr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
     name: userData.name.trim(),
     email: userData.email.trim().toLowerCase(),
     role: userData.role || 'creator',
     status: userData.status || 'active',
-    apiToken: userData.apiToken || generateUserToken(rolePrefix),
+    apiTokenHash: hashUserToken(apiToken),
+    maskedApiToken: maskSecret(apiToken),
     quotaLimit: Number(userData.quotaLimit ?? 500),
     quotaUsed: Number(userData.quotaUsed ?? 0),
     rateLimitPerMin: Number(userData.rateLimitPerMin ?? 30),
@@ -666,7 +689,7 @@ export async function createUser(userData, actor = 'Admin Dashboard') {
   store.users.unshift(newUser);
   await saveConfigStore();
   await addAuditLog(actor, 'USER_CREATED', `Created user ${newUser.name} (${newUser.email}) with role=${newUser.role}`);
-  return newUser;
+  return { ...newUser, apiToken };
 }
 
 export async function updateUser(userId, patch, actor = 'Admin Dashboard') {
@@ -694,12 +717,14 @@ export async function regenerateUserToken(userId, actor = 'Admin Dashboard') {
   if (!user) throw new Error('User not found');
 
   const rolePrefix = user.role === 'admin' ? 'ms_live_adm' : user.role === 'engineer' ? 'ms_live_eng' : 'ms_live_usr';
-  user.apiToken = generateUserToken(rolePrefix);
+  const apiToken = generateUserToken(rolePrefix);
+  user.apiTokenHash = hashUserToken(apiToken);
+  user.maskedApiToken = maskSecret(apiToken);
   user.lastActiveAt = new Date().toISOString();
 
   await saveConfigStore();
   await addAuditLog(actor, 'USER_TOKEN_ROTATED', `Rotated API Token for ${user.name} (${user.email})`);
-  return user;
+  return { ...user, apiToken };
 }
 
 export async function deleteUser(userId, actor = 'Admin Dashboard') {
