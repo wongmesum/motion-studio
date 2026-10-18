@@ -1,0 +1,2221 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motion Studio — Admin Dashboard (AI Provider & User Management)</title>
+<style>
+  :root {
+    --bg: #060913;
+    --bg-elev: #0c1222;
+    --panel: #10172a;
+    --panel-hover: #162038;
+    --border: rgba(148, 163, 184, 0.16);
+    --border-strong: rgba(56, 189, 248, 0.38);
+    --cyan: #38bdf8;
+    --purple: #a855f7;
+    --emerald: #34d399;
+    --amber: #fbbf24;
+    --rose: #f43f5e;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: radial-gradient(circle at 15% 0%, rgba(56, 189, 248, 0.08), transparent 45%),
+                radial-gradient(circle at 85% 10%, rgba(168, 85, 247, 0.08), transparent 45%),
+                var(--bg);
+    color: var(--text);
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* HEADER */
+  header {
+    padding: 14px 24px;
+    background: rgba(12, 18, 34, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand-badge {
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    color: #040711;
+    font-weight: 900;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.8px;
+  }
+  .brand h1 {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+  }
+  .brand-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(52, 211, 153, 0.12);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    color: var(--emerald);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--emerald);
+    box-shadow: 0 0 8px var(--emerald);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    transition: all 0.15s ease;
+    text-decoration: none !important;
+  }
+  .btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--cyan), #0284c7);
+    color: #04101d;
+    border: none;
+    font-weight: 700;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.1);
+  }
+  .btn-purple {
+    background: linear-gradient(135deg, var(--purple), #7e22ce);
+    color: #fff;
+    border: none;
+    font-weight: 700;
+  }
+  .btn-emerald {
+    background: rgba(52, 211, 153, 0.15);
+    border-color: rgba(52, 211, 153, 0.4);
+    color: var(--emerald);
+  }
+  .btn-danger {
+    background: rgba(244, 63, 94, 0.14);
+    border-color: rgba(244, 63, 94, 0.4);
+    color: var(--rose);
+  }
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  /* LAYOUT */
+  .layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    min-height: calc(100vh - 65px);
+  }
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  aside {
+    background: rgba(12, 18, 34, 0.75);
+    border-right: 1px solid var(--border);
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .nav-group-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    padding: 8px 10px 4px;
+  }
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+  }
+  .nav-btn.active {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.35);
+    color: var(--cyan);
+  }
+  .nav-badge {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+  }
+  .sidebar-card {
+    margin-top: auto;
+    padding: 12px;
+    border-radius: 10px;
+    background: linear-gradient(160deg, rgba(56, 189, 248, 0.1), rgba(168, 85, 247, 0.1));
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .sidebar-card strong {
+    color: var(--cyan);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* MAIN CONTENT */
+  main {
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .tab-panel {
+    display: none;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .tab-panel.active {
+    display: flex;
+  }
+
+  /* KPI GRID */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 1200px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+  }
+  .kpi-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .kpi-label {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .kpi-value {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+  }
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* CARDS & FORMS */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  select,
+  textarea {
+    width: 100%;
+    background: #080d1a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--cyan);
+  }
+  .mono {
+    font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    font-size: 12.5px;
+  }
+
+  /* CODE BLOCK */
+  pre.code-box {
+    background: #050811;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 10px;
+    padding: 14px;
+    color: #bae6fd;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* TABLES */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge-cyan { background: rgba(56, 189, 248, 0.15); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.35); }
+  .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); }
+  .badge-emerald { background: rgba(52, 211, 153, 0.15); color: var(--emerald); border: 1px solid rgba(52, 211, 153, 0.35); }
+  .badge-amber { background: rgba(251, 191, 36, 0.15); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.35); }
+  .badge-rose { background: rgba(244, 63, 94, 0.15); color: var(--rose); border: 1px solid rgba(244, 63, 94, 0.35); }
+
+  /* QUOTA BAR */
+  .quota-bar {
+    width: 120px;
+    height: 7px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .quota-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    border-radius: 99px;
+  }
+
+  /* MODAL */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 6, 14, 0.78);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 540px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  }
+
+  /* TOAST */
+  #toastContainer {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 200;
+  }
+  .toast {
+    background: #0f172a;
+    border-left: 4px solid var(--cyan);
+    border-top: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-badge">ADMIN CONSOLE</span>
+    <div>
+      <h1>Motion Studio — API Key & User Management</h1>
+      <div class="brand-sub">River AI &amp; DeepSeek Official • Multi-User Access Control</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <div class="status-pill" id="connectionBadge">
+      <span class="status-dot"></span>
+      <span id="connectionText">Menyambung ke VPS Server...</span>
+    </div>
+    <a class="btn" href="https://api-docs.deepseek.com/" target="_blank" rel="noopener">
+      📚 DeepSeek API Docs ↗
+    </a>
+    <a class="btn btn-purple" href="preview-studio.html">
+      🎬 Buka 1080p Preview Studio
+    </a>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="nav-group-title">Menu Utama</div>
+    <button class="nav-btn active" onclick="switchTab('overview', this)">
+      <span>📊 Ringkasan & Status</span>
+      <span class="nav-badge" id="navBadgeModel">V4.1</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('apikeys', this)">
+      <span>🔑 Manajemen API Key</span>
+      <span class="nav-badge" id="navBadgeKeys">2</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('users', this)">
+      <span>👥 Manajemen User</span>
+      <span class="nav-badge" id="navBadgeUsers">4</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('playground', this)">
+      <span>⚡ Uji Stream AI</span>
+      <span class="nav-badge">SSE</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('audit', this)">
+      <span>🛡️ Audit Log</span>
+      <span class="nav-badge" id="navBadgeLogs">1</span>
+    </button>
+
+    <div class="sidebar-card">
+      <strong id="sidebarProviderName">AI Provider Aktif</strong>
+      <div class="mono" style="font-size:11px;color:#cbd5e1;word-break:break-all;" id="sidebarEndpoint">
+        https://api.river.ai/v1/chat/completions
+      </div>
+      <div style="margin-top:6px;color:var(--emerald);font-weight:700;font-size:11.5px;" id="sidebarModel">
+        deepseek-ai/DeepSeek-V4.1-Flash
+      </div>
+      <div style="margin-top:4px;color:var(--muted);font-size:11px;">
+        thinking: <code id="sidebarThinking">false</code> | stream: <code id="sidebarStream">true</code>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main>
+
+    <!-- ========================================== -->
+    <!-- TAB 1: OVERVIEW -->
+    <!-- ========================================== -->
+    <section class="tab-panel active" id="tab-overview">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span>MODEL AI AKTIF</span>
+            <span class="badge badge-cyan">STREAM</span>
+          </div>
+          <div class="kpi-value" style="font-size:16px;color:var(--cyan);" id="kpiActiveModel">
+            deepseek-ai/DeepSeek-V4.1-Flash
+          </div>
+          <div class="kpi-sub" id="kpiActiveKeyMask">Key: (belum dimuat)</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span>TOTAL USER TERDAFTAR</span>
+            <span class="badge badge-emerald" id="kpiActiveUsersBadge">3 Aktif</span>
+          </div>
+          <div class="kpi-value" id="kpiTotalUsers">4 User</div>
+          <div class="kpi-sub">Multi-Role RBAC & Per-User X-Token</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span>AI API CALLS</span>
+            <span class="badge badge-purple">5-STAGE GATE</span>
+          </div>
+          <div class="kpi-value" id="kpiTotalRequests">170 Req</div>
+          <div class="kpi-sub" id="kpiTotalTokens">223,520 Tokens Processed</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">
+            <span>KUOTA RENDER TERPAKAI</span>
+            <span class="badge badge-amber">1080p 60fps</span>
+          </div>
+          <div class="kpi-value" id="kpiTotalQuota">1,241 Jobs</div>
+          <div class="kpi-sub">Playwright + FFmpeg Render Farm</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">⚡ Quick Switch API Key (AI Vault)</div>
+              <div class="card-desc">Ganti API Key aktif per provider secara instan tanpa restart server</div>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="switchTabByName('apikeys')">+ Kelola Key</button>
+          </div>
+          <div id="overviewVaultList" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔗 Spesifikasi Request AI Aktif</div>
+              <div class="card-desc">River AI menyertakan header <code>X-River-Conversation-Id</code>; DeepSeek Official memakai Bearer auth standar tanpa ekstensi River</div>
+            </div>
+            <button class="btn btn-sm" onclick="copyCurlCommand()">📋 Copy cURL</button>
+          </div>
+          <pre class="code-box" id="overviewCurlBox"></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">👥 Ringkasan Akses User & Kuota Render</div>
+            <div class="card-desc">Daftar pengguna yang memiliki akses ke MCP Server, AI Render Engineer, dan VPS Render Farm</div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="openUserModal()">+ Tambah User Baru</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama & Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Access Token (X-Token)</th>
+                <th>Kuota Render</th>
+                <th>Aksi Cepat</th>
+              </tr>
+            </thead>
+            <tbody id="overviewUsersTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: MANAJEMEN API KEY (AI PROVIDER & SERVICES) -->
+    <!-- ========================================== -->
+    <section class="tab-panel" id="tab-apikeys">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔑 Konfigurasi Provider AI</div>
+            <div class="card-desc">
+              River AI: <a href="https://console.river.ai/keys" target="_blank" rel="noopener">console.river.ai/keys</a>.
+              DeepSeek Official: <a href="https://api-docs.deepseek.com/" target="_blank" rel="noopener">api-docs.deepseek.com</a>
+              (API base <code>https://api.deepseek.com</code>). Perubahan langsung diterapkan ke AI 5-Stage Render Engineer &amp; MCP Server.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a class="btn btn-sm" href="https://console.river.ai/keys" target="_blank" rel="noopener">🌐 Console River ↗</a>
+            <button class="btn btn-sm btn-emerald" onclick="testRiverKeyFromForm()">⚡ Test Koneksi Key</button>
+            <button class="btn btn-sm btn-primary" onclick="saveApiKeysConfig()">💾 Simpan Konfigurasi API Key</button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Provider AI Aktif</label>
+            <select id="cfgActiveAiProvider" onchange="selectAiProvider()">
+              <option value="river">River AI</option>
+              <option value="deepseek">DeepSeek Official</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Dokumentasi Provider</label>
+            <a id="cfgProviderDocs" class="btn btn-sm" href="https://console.river.ai/keys" target="_blank" rel="noopener">Buka dokumentasi provider ↗</a>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>
+              <span id="cfgBaseUrlLabel">RIVER_API_BASE_URL</span>
+              <span style="color:var(--cyan);font-size:11px;">Otomatis ke /v1/chat/completions</span>
+            </label>
+            <input type="text" id="cfgRiverBaseUrl" class="mono" placeholder="https://api.river.ai" oninput="refreshCurlPreview()">
+          </div>
+
+          <div class="form-group">
+            <label>
+              <span id="cfgApiKeyLabel">RIVER_API_KEY (<a href="https://console.river.ai/keys" target="_blank">console.river.ai/keys</a>)</span>
+              <span style="color:var(--emerald);font-size:11px;" id="keyStatusLabel">● Key Tersimpan</span>
+            </label>
+            <div class="input-row">
+              <input type="password" id="cfgRiverApiKey" class="mono" placeholder="Masukkan API key baru..." oninput="refreshCurlPreview()">
+              <button class="btn btn-sm" type="button" onclick="toggleSecretInput('cfgRiverApiKey')">👁️</button>
+              <button class="btn btn-sm" type="button" onclick="copyInputValue('cfgRiverApiKey')">📋</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-group">
+            <label id="cfgModelLabel">Model River AI</label>
+            <input type="text" id="cfgRiverModel" class="mono" value="deepseek-ai/DeepSeek-V4.1-Flash" oninput="refreshCurlPreview()">
+          </div>
+
+          <div class="form-group">
+            <label>Temperature (0.0 – 2.0)</label>
+            <input type="number" id="cfgRiverTemp" step="0.1" min="0" max="2" value="0.7" oninput="refreshCurlPreview()">
+          </div>
+
+          <div class="form-group">
+            <label>Max Tokens</label>
+            <input type="number" id="cfgRiverMaxTokens" step="128" min="128" max="32768" value="2048" oninput="refreshCurlPreview()">
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-group">
+            <label>Stream Mode (<code>curl -N</code> SSE)</label>
+            <select id="cfgRiverStream" onchange="refreshCurlPreview()">
+              <option value="true" selected>true (Server-Sent Events Stream)</option>
+              <option value="false">false (Standard JSON Response)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label><code>chat_template_kwargs.enable_thinking</code></label>
+            <select id="cfgRiverThinking" onchange="refreshCurlPreview()">
+              <option value="false" selected>false (Fast Flash Mode — Direkomendasikan)</option>
+              <option value="true">true (Enable Extended Thinking)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <span>X-River-Conversation-Id</span>
+              <a href="javascript:void(0)" onclick="regenerateFormConvId()" style="font-size:11px;">🔄 UUID Baru</a>
+            </label>
+            <input type="text" id="cfgConversationId" class="mono" readonly>
+          </div>
+        </div>
+      </div>
+
+      <!-- MULTI-KEY VAULT -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🗄️ AI Multi-Key Vault (Rotasi &amp; Backup Key)</div>
+            <div class="card-desc">Simpan beberapa API Key per provider dan alihkan key aktif kapan saja dengan 1 klik. Aktivasi hanya memengaruhi provider key tersebut.</div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="openVaultModal()">+ Tambah API Key ke Vault</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Label Key</th>
+                <th>Provider</th>
+                <th>Environment</th>
+                <th>Base URL & Model</th>
+                <th>API Key (Masked)</th>
+                <th>Pemakaian</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="vaultTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SERVICE KEYS LAINNYA & CURL GENERATOR -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🛡️ Kunci Integrasi Layanan Lainnya</div>
+              <div class="card-desc">Higgsfield AI Asset Generator, Master VPS Token, & Webhook</div>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="saveApiKeysConfig()">💾 Simpan Semua</button>
+          </div>
+          <div class="form-group">
+            <label>HIGGSFIELD_API_KEY (Asset Image/Video AI)</label>
+            <div class="input-row">
+              <input type="password" id="cfgHiggsfieldKey" class="mono" placeholder="hgf_live_...">
+              <button class="btn btn-sm" onclick="toggleSecretInput('cfgHiggsfieldKey')">👁️</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>VPS_TOKEN (Master Token X-Token untuk Server Render)</label>
+            <div class="input-row">
+              <input type="password" id="cfgVpsToken" class="mono" placeholder="Masukkan VPS_TOKEN baru...">
+              <button class="btn btn-sm" onclick="toggleSecretInput('cfgVpsToken')">👁️</button>
+              <button class="btn btn-sm" onclick="generateNewMasterToken()">🔄 Generate</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>WEBHOOK_URL (Callback saat Render Selesai)</label>
+            <input type="text" id="cfgWebhookUrl" class="mono" placeholder="https://your-domain.com/api/webhook">
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+            <button class="btn btn-sm" onclick="downloadEnvFile()">📥 Download File .env</button>
+            <button class="btn btn-sm" onclick="exportConfigJson()">📦 Export JSON Config</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">💻 Perintah cURL AI Provider (Live Generator)</div>
+              <div class="card-desc">Menyesuaikan provider aktif. River menyertakan header conversation &amp; <code>chat_template_kwargs</code>; DeepSeek Official tidak.</div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <label style="font-size:11.5px;display:flex;align-items:center;gap:5px;cursor:pointer;">
+                <input type="checkbox" id="showRealKeyInCurl" onchange="refreshCurlPreview()"> Tampilkan Key Asli
+              </label>
+              <button class="btn btn-sm btn-primary" onclick="copyCurlCommand()">📋 Copy cURL</button>
+            </div>
+          </div>
+          <pre class="code-box" id="liveCurlBox"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: MANAJEMEN USER -->
+    <!-- ========================================== -->
+    <section class="tab-panel" id="tab-users">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">👥 Manajemen User & Hak Akses Token (RBAC)</div>
+            <div class="card-desc">Kelola akun pengguna, role, batas kuota render bulanan, rate limit per menit, dan rotasi <code>X-Token</code></div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <input type="text" id="userSearchInput" placeholder="🔍 Cari nama, email, atau token..." style="width:230px;" oninput="renderUsersTable()">
+            <select id="userRoleFilter" style="width:150px;" onchange="renderUsersTable()">
+              <option value="all">Semua Role</option>
+              <option value="admin">Super Admin</option>
+              <option value="engineer">Render Engineer</option>
+              <option value="creator">Motion Creator</option>
+              <option value="viewer">QA Viewer</option>
+            </select>
+            <select id="userStatusFilter" style="width:150px;" onchange="renderUsersTable()">
+              <option value="all">Semua Status</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+            <button class="btn btn-primary" onclick="openUserModal()">+ Tambah User Baru</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Pengguna</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>API Access Token (<code>X-Token</code>)</th>
+                <th>Kuota Render</th>
+                <th>Rate Limit</th>
+                <th>AI Access</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: PLAYGROUND & LIVE STREAM TESTER -->
+    <!-- ========================================== -->
+    <section class="tab-panel" id="tab-playground">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">⚡ Live AI Stream Tester</div>
+            <div class="card-desc">
+              Uji panggilan <code>POST {base}/v1/chat/completions</code> pada provider aktif lewat <code>/api/admin/ai/test</code>. API key tetap di server; browser tidak pernah menerima secret.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="setPlaygroundPreset('story')">📖 "Tell me a story."</button>
+            <button class="btn btn-sm" onclick="setPlaygroundPreset('validate')">🔍 Validate 60fps HTML</button>
+            <button class="btn btn-sm" onclick="setPlaygroundPreset('glitch')">✨ Generate Glitch Title</button>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-group">
+            <label>Model</label>
+            <input type="text" id="pgModel" class="mono" value="deepseek-ai/DeepSeek-V4.1-Flash">
+          </div>
+          <div class="form-group">
+            <label>
+              <span>Conversation ID (UUID lowercase)</span>
+              <a href="javascript:void(0)" onclick="regeneratePgConvId()" style="font-size:11px;">🔄 Regenerate</a>
+            </label>
+            <input type="text" id="pgConvId" class="mono">
+          </div>
+          <div class="form-group">
+            <label>Parameter Stream & Thinking</label>
+            <div style="display:flex;gap:14px;padding-top:8px;font-size:13px;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" id="pgStream" checked> <code>stream: true</code>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" id="pgThinking"> <code>enable_thinking</code>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>User Message Prompt</label>
+          <textarea id="pgPrompt" rows="3" placeholder="Tell me a story.">Tell me a story.</textarea>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div style="font-size:12px;color:var(--muted);" id="pgTelemetry">
+            Siap mengirim request ke provider AI aktif...
+          </div>
+          <button class="btn btn-primary" id="btnSendStream" onclick="runPlaygroundStream()">
+            🚀 Kirim Request Stream
+          </button>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>📺 Live Stream Output (Assistant Content)</label>
+            <pre class="code-box" id="pgOutputBox" style="min-height:220px;color:#f8fafc;">Klik "Kirim Request Stream" untuk melihat hasil streaming dari provider AI aktif...</pre>
+          </div>
+          <div class="form-group">
+            <label>📡 Raw SSE Chunks & HTTP Headers Telemetry</label>
+            <pre class="code-box" id="pgRawSseBox" style="min-height:220px;color:#34d399;">Menunggu koneksi SSE...</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: AUDIT LOGS -->
+    <!-- ========================================== -->
+    <section class="tab-panel" id="tab-audit">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🛡️ Audit Log Keamanan & Aktivitas Admin</div>
+            <div class="card-desc">Pencatatan otomatis setiap pergantian API Key AI provider, rotasi token, dan perubahan hak akses user</div>
+          </div>
+          <button class="btn btn-sm" onclick="exportAuditLogs()">📥 Export Log JSON</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Waktu (UTC)</th>
+                <th>Aktor</th>
+                <th>Aksi</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL TAMBAH / EDIT USER -->
+<!-- ========================================== -->
+<div class="modal-backdrop" id="userModalBackdrop">
+  <div class="modal">
+    <div class="card-header" style="padding-bottom:10px;">
+      <div class="card-title" id="userModalTitle">➕ Tambah User Baru</div>
+      <button class="btn btn-sm" onclick="closeUserModal()">✕</button>
+    </div>
+    <input type="hidden" id="editUserId">
+    <div class="form-group">
+      <label>Nama Lengkap</label>
+      <input type="text" id="usrName" placeholder="Contoh: Andi Wijaya">
+    </div>
+    <div class="form-group">
+      <label>Alamat Email</label>
+      <input type="email" id="usrEmail" placeholder="andi@motionstudio.id">
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Role Akses</label>
+        <select id="usrRole">
+          <option value="admin">Super Admin (Full Control)</option>
+          <option value="engineer">Render Engineer (Pipeline & Keys)</option>
+          <option value="creator" selected>Motion Creator (Render & MCP)</option>
+          <option value="viewer">QA Viewer (Read-Only)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Status Akun</label>
+        <select id="usrStatus">
+          <option value="active" selected>Active (Aktif)</option>
+          <option value="suspended">Suspended (Ditangguhkan)</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Kuota Render Bulanan (Job)</label>
+        <input type="number" id="usrQuotaLimit" value="500" min="0" step="50">
+      </div>
+      <div class="form-group">
+        <label>Rate Limit (Request / Menit)</label>
+        <input type="number" id="usrRateLimit" value="30" min="1" max="1000">
+      </div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="usrRiverAccess" checked>
+        <span>Izinkan akses ke AI Provider (River AI / DeepSeek Official)</span>
+      </label>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+      <button class="btn" onclick="closeUserModal()">Batal</button>
+      <button class="btn btn-primary" onclick="saveUserModal()">💾 Simpan User</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL TAMBAH API KEY KE VAULT -->
+<!-- ========================================== -->
+<div class="modal-backdrop" id="vaultModalBackdrop">
+  <div class="modal">
+    <div class="card-header" style="padding-bottom:10px;">
+      <div class="card-title">🔑 Tambah API Key AI ke Vault</div>
+      <button class="btn btn-sm" onclick="closeVaultModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Label / Nama Key</label>
+      <input type="text" id="vaultLabel" placeholder="Contoh: River AI Production Key #2">
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Environment</label>
+        <select id="vaultEnv">
+          <option value="production" selected>Production</option>
+          <option value="staging">Staging</option>
+          <option value="development">Development</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Model Default</label>
+        <input type="text" id="vaultModel" class="mono" value="deepseek-ai/DeepSeek-V4.1-Flash">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Provider</label>
+      <select id="vaultProviderId" onchange="syncVaultModalLabels()">
+        <option value="river">River AI</option>
+        <option value="deepseek">DeepSeek Official</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label id="vaultBaseUrlLabel">RIVER_API_BASE_URL</label>
+      <input type="text" id="vaultBaseUrl" class="mono" value="https://api.river.ai">
+    </div>
+    <div class="form-group">
+      <label>
+        <span id="vaultApiKeyLabel">RIVER_API_KEY (dari <a href="https://console.river.ai/keys" target="_blank">console.river.ai/keys</a>)</span>
+      </label>
+      <input type="text" id="vaultApiKey" class="mono" placeholder="Masukkan API key...">
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="vaultSetActive" checked>
+        <span>Langsung jadikan sebagai API Key Utama yang Aktif</span>
+      </label>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+      <button class="btn" onclick="closeVaultModal()">Batal</button>
+      <button class="btn btn-primary" onclick="saveVaultModal()">💾 Tambahkan Key</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+const STORAGE_KEY = 'motion_studio_admin_state_v2';
+const ADMIN_TOKEN_STORAGE_KEY = 'motion_studio_admin_token_session';
+const API_BASE = window.location.protocol.startsWith('http') ? window.location.origin : 'http://localhost:3000';
+let backendConnected = false;
+let revealedTokens = {};
+let adminToken = sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || '';
+
+function getAdminHeaders(extra = {}) {
+  return adminToken ? { ...extra, 'X-Admin-Token': adminToken } : extra;
+}
+
+function promptForAdminToken() {
+  const token = window.prompt('Masukkan X-Admin-Token untuk membuka Admin Dashboard:');
+  if (!token) return false;
+  adminToken = token.trim();
+  sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, adminToken);
+  return Boolean(adminToken);
+}
+
+async function authenticatedFetch(url, options = {}) {
+  const requestOptions = { ...options, headers: getAdminHeaders(options.headers || {}) };
+  let response = await fetch(url, requestOptions);
+  if (response.status === 401 && promptForAdminToken()) {
+    response = await fetch(url, {
+      ...options,
+      headers: getAdminHeaders(options.headers || {}),
+    });
+  }
+  if (response.status === 401) {
+    adminToken = '';
+    sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    throw new Error('Admin token tidak valid');
+  }
+  return response;
+}
+
+function generateUuidLower() {
+  if (window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID().toLowerCase();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  }).toLowerCase();
+}
+
+const HTML_ESCAPES = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+};
+
+// Server- and user-supplied values reach the DOM through template literals, so every
+// interpolation must be escaped before it becomes markup.
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
+}
+
+// Builds a double-quoted JS string literal, then HTML-escapes it, so the value stays
+// safe when embedded in an inline handler attribute such as onclick="fn(...)".
+function toInlineJsArgument(value) {
+  return escapeHtml(JSON.stringify(String(value ?? '')));
+}
+
+function maskKey(str) {
+  if (!str) return '(belum diisi)';
+  if (str.length <= 10) return str.slice(0, 3) + '••••••';
+  return str.slice(0, 7) + '••••••••••••' + str.slice(-4);
+}
+
+// Local provider metadata drives labels only. Secrets and truth come from the server.
+const AI_PROVIDERS = {
+  river: {
+    id: 'river',
+    name: 'River AI',
+    docsUrl: 'https://console.river.ai/keys',
+    baseUrl: 'https://api.river.ai',
+    model: 'deepseek-ai/DeepSeek-V4.1-Flash',
+    baseUrlEnv: 'RIVER_API_BASE_URL',
+    apiKeyEnv: 'RIVER_API_KEY',
+    modelEnv: 'RIVER_MODEL',
+    hasConversationHeader: true
+  },
+  deepseek: {
+    id: 'deepseek',
+    name: 'DeepSeek Official',
+    docsUrl: 'https://api-docs.deepseek.com/',
+    baseUrl: 'https://api.deepseek.com',
+    model: 'deepseek-chat',
+    baseUrlEnv: 'DEEPSEEK_API_BASE_URL',
+    apiKeyEnv: 'DEEPSEEK_API_KEY',
+    modelEnv: 'DEEPSEEK_MODEL',
+    hasConversationHeader: false
+  }
+};
+
+function getActiveProviderId() {
+  return AI_PROVIDERS[state.activeAiProvider] ? state.activeAiProvider : 'river';
+}
+
+function getActiveProvider() {
+  return AI_PROVIDERS[getActiveProviderId()];
+}
+
+function getActiveProviderConfig() {
+  const providerId = getActiveProviderId();
+  return (state.aiProviders && state.aiProviders[providerId]) || DEFAULT_STATE.aiProviders[providerId];
+}
+
+// No fabricated credentials here. Server state is the only source of truth; this
+// shape only keeps the UI renderable before the first authenticated response.
+const DEFAULT_STATE = {
+  activeAiProvider: 'river',
+  aiProviders: {
+    river: {
+      providerId: 'river',
+      provider: 'River AI',
+      docsUrl: 'https://console.river.ai/keys',
+      baseUrl: 'https://api.river.ai',
+      apiKey: '',
+      maskedApiKey: '',
+      model: 'deepseek-ai/DeepSeek-V4.1-Flash',
+      stream: true,
+      temperature: 0.7,
+      maxTokens: 2048,
+      chatTemplateKwargs: { enable_thinking: false },
+      updatedAt: null
+    },
+    deepseek: {
+      providerId: 'deepseek',
+      provider: 'DeepSeek Official',
+      docsUrl: 'https://api-docs.deepseek.com/',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: '',
+      maskedApiKey: '',
+      model: 'deepseek-chat',
+      stream: true,
+      temperature: 0.7,
+      maxTokens: 2048,
+      updatedAt: null
+    }
+  },
+  serviceKeys: {
+    higgsfieldApiUrl: 'https://api.higgsfield.ai',
+    higgsfieldApiKey: '',
+    maskedHiggsfieldKey: '',
+    maskedVpsToken: '',
+    maskedAdminToken: '',
+    hmacConfigured: false,
+    webhookUrl: ''
+  },
+  keyVault: [],
+  users: [],
+  auditLogs: []
+};
+
+let state = loadLocalState();
+
+// Older sessions cached a flat riverConfig; fold it into the provider map so the
+// dashboard keeps rendering after the multi-provider upgrade.
+function migrateLocalState(cached) {
+  const defaults = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  const merged = { ...defaults, ...cached };
+  // Deep copy so a cached session can never mutate shared DEFAULT_STATE objects.
+  merged.aiProviders = JSON.parse(JSON.stringify({ ...defaults.aiProviders, ...(cached.aiProviders || {}) }));
+  if (!cached.aiProviders && cached.riverConfig) {
+    merged.aiProviders.river = { ...merged.aiProviders.river, ...cached.riverConfig };
+  }
+  merged.activeAiProvider = AI_PROVIDERS[cached.activeAiProvider] ? cached.activeAiProvider : 'river';
+  delete merged.riverConfig;
+  return merged;
+}
+
+function loadLocalState() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (raw) return migrateLocalState(JSON.parse(raw));
+  } catch (error) {
+    console.warn('Session state operation failed', error);
+  }
+  return JSON.parse(JSON.stringify(DEFAULT_STATE));
+}
+
+// Session-scoped only: masked projections live here, never raw secrets on disk.
+function saveLocalState() {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.warn('Session state operation failed', error);
+  }
+}
+
+function addLocalAudit(actor, action, detail) {
+  state.auditLogs.unshift({
+    id: 'log_' + Date.now(),
+    timestamp: new Date().toISOString(),
+    actor,
+    action,
+    detail
+  });
+  saveLocalState();
+}
+
+function showToast(msg) {
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ============================================================
+// SYNC WITH BACKEND VPS SERVER IF RUNNING
+// ============================================================
+function applyProviderState(data) {
+  if (!data || !data.aiProviders) return;
+  state.activeAiProvider = data.activeAiProvider || 'river';
+  state.aiProviders = data.aiProviders;
+}
+
+async function refreshKeysFromBackend() {
+  const response = await authenticatedFetch(`${API_BASE}/api/admin/keys`);
+  if (!response.ok) throw new Error('Gagal memuat konfigurasi API key');
+  const data = await response.json();
+  applyProviderState(data);
+  state.serviceKeys = data.serviceKeys;
+  state.keyVault = data.keyVault;
+  saveLocalState();
+  populateFormFields();
+  renderAll();
+}
+
+async function syncFromBackend() {
+  try {
+    const res = await authenticatedFetch(`${API_BASE}/api/admin/overview`, { method: 'GET' });
+    if (!res.ok) throw new Error('Not connected');
+    const data = await res.json();
+    backendConnected = true;
+    document.getElementById('connectionText').textContent = 'VPS Server & AI Provider Connected';
+    sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, adminToken);
+
+    const keysRes = await authenticatedFetch(`${API_BASE}/api/admin/keys`);
+    const keysData = keysRes.ok ? await keysRes.json() : null;
+
+    if (keysData) {
+      applyProviderState(keysData);
+      state.serviceKeys = keysData.serviceKeys;
+      state.keyVault = keysData.keyVault;
+    }
+    if (data.users) state.users = data.users;
+    if (data.auditLogs) state.auditLogs = data.auditLogs;
+    saveLocalState();
+  } catch {
+    backendConnected = false;
+    document.getElementById('connectionText').textContent = 'Mode Lokal (Belum Terhubung VPS Server)';
+  }
+  populateFormFields();
+  renderAll();
+}
+
+function renderProviderLabels() {
+  const provider = getActiveProvider();
+  document.getElementById('cfgActiveAiProvider').value = provider.id;
+  document.getElementById('cfgProviderDocs').href = provider.docsUrl;
+  document.getElementById('cfgBaseUrlLabel').textContent = provider.baseUrlEnv;
+  document.getElementById('cfgApiKeyLabel').textContent = provider.apiKeyEnv;
+  document.getElementById('cfgModelLabel').textContent = `Model ${provider.name}`;
+  document.getElementById('cfgRiverThinking').closest('.form-group').style.display =
+    provider.hasConversationHeader ? '' : 'none';
+  document.getElementById('cfgConversationId').closest('.form-group').style.display =
+    provider.hasConversationHeader ? '' : 'none';
+}
+
+function populateFormFields() {
+  renderProviderLabels();
+  const rc = getActiveProviderConfig();
+  const provider = getActiveProvider();
+  document.getElementById('cfgRiverBaseUrl').value = rc.baseUrl || provider.baseUrl;
+  document.getElementById('cfgRiverApiKey').value = '';
+  document.getElementById('cfgRiverApiKey').placeholder = rc.maskedApiKey || `Masukkan ${provider.apiKeyEnv} baru...`;
+  document.getElementById('cfgRiverModel').value = rc.model || provider.model;
+  document.getElementById('cfgRiverTemp').value = rc.temperature ?? 0.7;
+  document.getElementById('cfgRiverMaxTokens').value = rc.maxTokens ?? 2048;
+  document.getElementById('cfgRiverStream').value = String(rc.stream !== false);
+  document.getElementById('cfgRiverThinking').value = String(Boolean(rc.chatTemplateKwargs?.enable_thinking));
+  if (!document.getElementById('cfgConversationId').value) {
+    document.getElementById('cfgConversationId').value = generateUuidLower();
+  }
+  if (!document.getElementById('pgConvId').value) {
+    document.getElementById('pgConvId').value = generateUuidLower();
+  }
+  document.getElementById('pgModel').value = rc.model || provider.model;
+
+  const sk = state.serviceKeys || {};
+  document.getElementById('cfgHiggsfieldKey').value = '';
+  document.getElementById('cfgHiggsfieldKey').placeholder = sk.maskedHiggsfieldKey || 'Masukkan HIGGSFIELD_API_KEY baru...';
+  document.getElementById('cfgVpsToken').value = '';
+  document.getElementById('cfgVpsToken').placeholder = sk.maskedVpsToken || 'Masukkan VPS_TOKEN baru...';
+  document.getElementById('cfgWebhookUrl').value = sk.webhookUrl || '';
+}
+
+// Switching provider is a local form swap only; nothing is persisted until save.
+function selectAiProvider() {
+  state.activeAiProvider = document.getElementById('cfgActiveAiProvider').value;
+  saveLocalState();
+  populateFormFields();
+  refreshCurlPreview();
+}
+
+function buildCurlString(useRealKey = false) {
+  const provider = getActiveProvider();
+  const config = getActiveProviderConfig();
+  const baseUrl = (document.getElementById('cfgRiverBaseUrl')?.value || config.baseUrl || provider.baseUrl).trim().replace(/\/+$/, '');
+  const apiKey = document.getElementById('cfgRiverApiKey')?.value || `$${provider.apiKeyEnv}`;
+  const model = document.getElementById('cfgRiverModel')?.value || config.model || provider.model;
+  const temp = Number(document.getElementById('cfgRiverTemp')?.value ?? 0.7);
+  const maxTokens = Number(document.getElementById('cfgRiverMaxTokens')?.value ?? 2048);
+  const stream = document.getElementById('cfgRiverStream')?.value !== 'false';
+  const thinking = document.getElementById('cfgRiverThinking')?.value === 'true';
+
+  const shownBase = useRealKey ? baseUrl : `$${provider.baseUrlEnv}`;
+  const shownKey = useRealKey ? apiKey : `$${provider.apiKeyEnv}`;
+  // River-only extensions must never appear in an official DeepSeek example.
+  const riverExtensions = provider.hasConversationHeader
+    ? `  -H "X-River-Conversation-Id: $CONVERSATION_ID" \\
+`
+    : '';
+  const riverBody = provider.hasConversationHeader
+    ? `
+    "chat_template_kwargs": {"enable_thinking": ${thinking}},`
+    : '';
+
+  return `CONVERSATION_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+curl -N "${shownBase}/v1/chat/completions" \\
+  -H "Authorization: Bearer ${shownKey}" \\
+  -H "Content-Type: application/json" \\
+${riverExtensions}  -d '{
+    "model": "${model}",
+    "stream": ${stream},
+    "temperature": ${temp},
+    "max_tokens": ${maxTokens},${riverBody}
+    "messages": [{"role":"user","content":"Tell me a story."}]
+  }'`;
+}
+
+function refreshCurlPreview() {
+  const showReal = document.getElementById('showRealKeyInCurl')?.checked;
+  const curlText = buildCurlString(showReal);
+  document.getElementById('liveCurlBox').textContent = curlText;
+  document.getElementById('overviewCurlBox').textContent = buildCurlString(false);
+}
+
+function renderAll() {
+  const rc = getActiveProviderConfig();
+  const provider = getActiveProvider();
+  const cleanBase = (rc.baseUrl || provider.baseUrl).replace(/\/+$/, '');
+  document.getElementById('sidebarProviderName').textContent = `${provider.name} Endpoint Aktif`;
+  document.getElementById('sidebarEndpoint').textContent = `${cleanBase}/v1/chat/completions`;
+  document.getElementById('sidebarModel').textContent = rc.model || provider.model;
+  document.getElementById('sidebarThinking').textContent = String(Boolean(rc.chatTemplateKwargs?.enable_thinking));
+  document.getElementById('sidebarStream').textContent = String(rc.stream !== false);
+
+  document.getElementById('kpiActiveModel').textContent = rc.model || provider.model;
+  document.getElementById('kpiActiveKeyMask').textContent =
+    `${provider.name} • Key: ${rc.maskedApiKey || '(belum diisi)'}`;
+
+  const activeUsers = state.users.filter(u => u.status === 'active').length;
+  document.getElementById('kpiTotalUsers').textContent = `${state.users.length} User`;
+  document.getElementById('kpiActiveUsersBadge').textContent = `${activeUsers} Aktif`;
+
+  const totalReq = state.keyVault.reduce((s, k) => s + (k.requestsCount || 0), 0);
+  const totalTok = state.keyVault.reduce((s, k) => s + (k.tokensUsed || 0), 0);
+  document.getElementById('kpiTotalRequests').textContent = `${totalReq.toLocaleString()} Req`;
+  document.getElementById('kpiTotalTokens').textContent = `${totalTok.toLocaleString()} Tokens Processed`;
+
+  const totalQuota = state.users.reduce((s, u) => s + (u.quotaUsed || 0), 0);
+  document.getElementById('kpiTotalQuota').textContent = `${totalQuota.toLocaleString()} Jobs`;
+
+  document.getElementById('navBadgeKeys').textContent = String(state.keyVault.length);
+  document.getElementById('navBadgeUsers').textContent = String(state.users.length);
+  document.getElementById('navBadgeLogs').textContent = String(state.auditLogs.length);
+  document.getElementById('navBadgeModel').textContent = provider.id === 'river' ? 'River' : 'DeepSeek';
+
+  refreshCurlPreview();
+  renderOverviewVault();
+  renderVaultTable();
+  renderUsersTable();
+  renderAuditTable();
+}
+
+function renderOverviewVault() {
+  const container = document.getElementById('overviewVaultList');
+  container.innerHTML = state.keyVault.map(k => {
+    const keyId = toInlineJsArgument(k.id);
+    const label = escapeHtml(k.label);
+    const environment = escapeHtml(k.env);
+    const maskedKey = escapeHtml(k.maskedKey || '(belum diisi)');
+    const model = escapeHtml(k.model);
+    const providerName = escapeHtml((AI_PROVIDERS[k.providerId] || AI_PROVIDERS.river).name);
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid ${k.isActive ? 'rgba(56,189,248,0.45)' : 'var(--border)'};">
+        <div>
+          <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px;">
+            <span>${label}</span>
+            ${k.isActive ? '<span class="badge badge-emerald">ACTIVE KEY</span>' : `<span class="badge badge-purple">${environment}</span>`}
+          </div>
+          <div class="mono" style="font-size:11.5px;color:var(--muted);margin-top:3px;">
+            ${providerName} • ${maskedKey} • ${model}
+          </div>
+        </div>
+        <div>
+          ${k.isActive
+            ? '<span style="font-size:12px;color:var(--cyan);font-weight:700;">✓ Sedang Digunakan</span>'
+            : `<button class="btn btn-sm btn-primary" onclick="activateKey(${keyId})">Gunakan Key Ini</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderVaultTable() {
+  const tbody = document.getElementById('vaultTableBody');
+  tbody.innerHTML = state.keyVault.map(k => {
+    const keyId = toInlineJsArgument(k.id);
+    const label = escapeHtml(k.label);
+    const environment = escapeHtml(k.env);
+    const baseUrl = escapeHtml(k.baseUrl);
+    const model = escapeHtml(k.model);
+    const maskedKey = escapeHtml(k.maskedKey || '(belum diisi)');
+    const createdAt = escapeHtml(new Date(k.createdAt).toLocaleDateString('id-ID'));
+    const providerName = (AI_PROVIDERS[k.providerId] || AI_PROVIDERS.river).name;
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:700;">${label}</div>
+          <div style="font-size:11px;color:var(--muted);">Dibuat: ${createdAt}</div>
+        </td>
+        <td><span class="badge badge-purple">${escapeHtml(providerName)}</span></td>
+        <td><span class="badge ${k.env === 'production' ? 'badge-cyan' : 'badge-purple'}">${environment}</span></td>
+        <td>
+          <div class="mono" style="font-size:12px;">${baseUrl}</div>
+          <div style="font-size:11.5px;color:var(--cyan);">${model}</div>
+        </td>
+        <td class="mono">${maskedKey}</td>
+        <td>
+          <div style="font-weight:600;">${Number(k.requestsCount || 0).toLocaleString()} req</div>
+          <div style="font-size:11px;color:var(--muted);">${Number(k.tokensUsed || 0).toLocaleString()} tokens</div>
+        </td>
+        <td>
+          ${k.isActive
+            ? '<span class="badge badge-emerald">● ACTIVE</span>'
+            : '<span class="badge badge-amber">STANDBY</span>'}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            ${!k.isActive ? `<button class="btn btn-sm btn-primary" onclick="activateKey(${keyId})">Aktifkan</button>` : ''}
+            <button class="btn btn-sm btn-danger" onclick="removeVaultKey(${keyId})">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function getRoleBadge(role) {
+  if (role === 'admin') return '<span class="badge badge-cyan">Super Admin</span>';
+  if (role === 'engineer') return '<span class="badge badge-purple">Render Engineer</span>';
+  if (role === 'creator') return '<span class="badge badge-emerald">Motion Creator</span>';
+  return '<span class="badge badge-amber">QA Viewer</span>';
+}
+
+function renderUsersTable() {
+  const q = (document.getElementById('userSearchInput')?.value || '').toLowerCase();
+  const roleFilter = document.getElementById('userRoleFilter')?.value || 'all';
+  const statusFilter = document.getElementById('userStatusFilter')?.value || 'all';
+
+  const filtered = state.users.filter(u => {
+    const searchableToken = u.maskedApiToken || '';
+    const matchQ = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || searchableToken.toLowerCase().includes(q);
+    const matchRole = roleFilter === 'all' || u.role === roleFilter;
+    const matchStatus = statusFilter === 'all' || u.status === statusFilter;
+    return matchQ && matchRole && matchStatus;
+  });
+
+  const renderRow = (u, compact = false) => {
+    const quotaUsed = Number(u.quotaUsed || 0);
+    const quotaLimit = Number(u.quotaLimit || 0);
+    const pct = quotaLimit > 0 ? Math.min(100, Math.round((quotaUsed / quotaLimit) * 100)) : 0;
+    const oneTimeToken = revealedTokens[u.id] || '';
+    const tokenDisplay = escapeHtml(oneTimeToken || u.maskedApiToken || '(tidak tersedia)');
+    const userId = toInlineJsArgument(u.id);
+    const tokenArgument = toInlineJsArgument(oneTimeToken);
+    const name = escapeHtml(u.name);
+    const email = escapeHtml(u.email);
+    const rateLimit = Number(u.rateLimitPerMin || 30);
+
+    if (compact) {
+      return `
+        <tr>
+          <td>
+            <div style="font-weight:700;">${name}</div>
+            <div style="font-size:11.5px;color:var(--muted);">${email}</div>
+          </td>
+          <td>${getRoleBadge(u.role)}</td>
+          <td>
+            <span class="badge ${u.status === 'active' ? 'badge-emerald' : 'badge-rose'}" style="cursor:pointer;" onclick="toggleUserStatus(${userId})">
+              ${u.status === 'active' ? '● Active' : '✕ Suspended'}
+            </span>
+          </td>
+          <td class="mono">
+            <span>${tokenDisplay}</span>
+            ${oneTimeToken ? `<button class="btn btn-sm" style="margin-left:6px;padding:2px 6px;" onclick="copyText(${tokenArgument}, 'Token user disalin')">📋</button>` : ''}
+          </td>
+          <td>
+            <div style="font-size:12px;font-weight:600;">${quotaUsed} / ${quotaLimit}</div>
+            <div class="quota-bar"><div class="quota-fill" style="width:${pct}%"></div></div>
+          </td>
+          <td>
+            <button class="btn btn-sm" onclick="openUserModal(${userId})">✏️ Edit</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:700;">${name}</div>
+          <div style="font-size:11.5px;color:var(--muted);">${email}</div>
+        </td>
+        <td>${getRoleBadge(u.role)}</td>
+        <td>
+          <span class="badge ${u.status === 'active' ? 'badge-emerald' : 'badge-rose'}" style="cursor:pointer;" title="Klik untuk ubah status" onclick="toggleUserStatus(${userId})">
+            ${u.status === 'active' ? '● Active' : '✕ Suspended'}
+          </span>
+        </td>
+        <td class="mono">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span>${tokenDisplay}</span>
+            ${oneTimeToken ? `<button class="btn btn-sm" style="padding:3px 7px;" onclick="copyText(${tokenArgument}, 'X-Token user disalin')">📋</button>` : ''}
+          </div>
+        </td>
+        <td>
+          <div style="font-size:12px;font-weight:600;">${quotaUsed} / ${quotaLimit} (${pct}%)</div>
+          <div class="quota-bar"><div class="quota-fill" style="width:${pct}%"></div></div>
+        </td>
+        <td><span class="mono">${rateLimit} req/m</span></td>
+        <td>
+          ${u.riverAccess !== false
+            ? '<span class="badge badge-cyan">Allowed</span>'
+            : '<span class="badge badge-rose">Blocked</span>'}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-sm" title="Edit User" onclick="openUserModal(${userId})">✏️</button>
+            <button class="btn btn-sm" title="Rotate X-Token" onclick="rotateUserToken(${userId})">🔄 Token</button>
+            <button class="btn btn-sm" title="Reset Kuota" onclick="resetUserQuota(${userId})">0️⃣</button>
+            <button class="btn btn-sm btn-danger" title="Hapus User" onclick="deleteUserById(${userId})">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  };
+
+  document.getElementById('usersTableBody').innerHTML = filtered.map(u => renderRow(u, false)).join('');
+  document.getElementById('overviewUsersTable').innerHTML = state.users.slice(0, 5).map(u => renderRow(u, true)).join('');
+}
+
+function renderAuditTable() {
+  const tbody = document.getElementById('auditTableBody');
+  tbody.innerHTML = state.auditLogs.map(log => `
+    <tr>
+      <td class="mono" style="font-size:11.5px;color:var(--muted);">${escapeHtml(new Date(log.timestamp).toLocaleString('id-ID'))}</td>
+      <td><span class="badge badge-purple">${escapeHtml(log.actor)}</span></td>
+      <td class="mono" style="font-weight:700;color:var(--cyan);">${escapeHtml(log.action)}</td>
+      <td>${escapeHtml(log.detail)}</td>
+    </tr>
+  `).join('');
+}
+
+// ============================================================
+// ACTIONS: API KEYS & VAULT
+// ============================================================
+function readProviderFormConfig() {
+  const provider = getActiveProvider();
+  const apiKey = document.getElementById('cfgRiverApiKey').value.trim();
+  const config = {
+    baseUrl: document.getElementById('cfgRiverBaseUrl').value.trim() || provider.baseUrl,
+    model: document.getElementById('cfgRiverModel').value.trim() || provider.model,
+    temperature: Number(document.getElementById('cfgRiverTemp').value || 0.7),
+    maxTokens: Number(document.getElementById('cfgRiverMaxTokens').value || 2048),
+    stream: document.getElementById('cfgRiverStream').value !== 'false',
+    ...(apiKey ? { apiKey } : {})
+  };
+  if (provider.hasConversationHeader) {
+    config.chatTemplateKwargs = {
+      enable_thinking: document.getElementById('cfgRiverThinking').value === 'true'
+    };
+  }
+  return config;
+}
+
+function readServiceKeysForm() {
+  const higgsfieldApiKey = document.getElementById('cfgHiggsfieldKey').value.trim();
+  const vpsToken = document.getElementById('cfgVpsToken').value.trim();
+  return {
+    webhookUrl: document.getElementById('cfgWebhookUrl').value.trim(),
+    ...(higgsfieldApiKey ? { higgsfieldApiKey } : {}),
+    ...(vpsToken ? { vpsToken } : {})
+  };
+}
+
+async function saveApiKeysConfig() {
+  const activeProviderId = getActiveProviderId();
+  const payload = {
+    activeAiProvider: activeProviderId,
+    aiProviders: { [activeProviderId]: readProviderFormConfig() },
+    serviceKeys: readServiceKeysForm()
+  };
+
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/keys`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error('Gagal menyimpan konfigurasi API key');
+    const data = await response.json();
+    applyProviderState(data);
+    state.serviceKeys = data.serviceKeys;
+    state.keyVault = data.keyVault;
+    backendConnected = true;
+    saveLocalState();
+    populateFormFields();
+    renderAll();
+    showToast(`✅ Konfigurasi ${getActiveProvider().name} berhasil disimpan!`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+function syncVaultModalLabels() {
+  const provider = AI_PROVIDERS[document.getElementById('vaultProviderId').value];
+  document.getElementById('vaultBaseUrlLabel').textContent = provider.baseUrlEnv;
+  document.getElementById('vaultApiKeyLabel').textContent = provider.apiKeyEnv;
+}
+
+function openVaultModal() {
+  const provider = getActiveProvider();
+  const config = getActiveProviderConfig();
+  document.getElementById('vaultLabel').value = '';
+  document.getElementById('vaultApiKey').value = '';
+  document.getElementById('vaultProviderId').value = provider.id;
+  document.getElementById('vaultBaseUrl').value = config.baseUrl || provider.baseUrl;
+  document.getElementById('vaultModel').value = config.model || provider.model;
+  document.getElementById('vaultSetActive').checked = true;
+  syncVaultModalLabels();
+  document.getElementById('vaultModalBackdrop').classList.add('open');
+}
+
+function closeVaultModal() {
+  document.getElementById('vaultModalBackdrop').classList.remove('open');
+}
+
+async function saveVaultModal() {
+  const providerId = document.getElementById('vaultProviderId').value;
+  const provider = AI_PROVIDERS[providerId];
+  const label = document.getElementById('vaultLabel').value.trim() || `${provider.name} Key`;
+  const env = document.getElementById('vaultEnv').value;
+  const baseUrl = document.getElementById('vaultBaseUrl').value.trim() || provider.baseUrl;
+  const model = document.getElementById('vaultModel').value.trim() || provider.model;
+  const apiKey = document.getElementById('vaultApiKey').value.trim();
+  const setActive = document.getElementById('vaultSetActive').checked;
+
+  if (!apiKey) {
+    showToast(`⚠️ Masukkan ${provider.apiKeyEnv} terlebih dahulu`);
+    return;
+  }
+
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/keys/vault`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, env, baseUrl, model, apiKey, setActive, providerId })
+    });
+    if (!response.ok) throw new Error('Gagal menambahkan API key ke vault');
+    await refreshKeysFromBackend();
+    closeVaultModal();
+    showToast(`✅ API Key ${provider.name} baru ditambahkan ke Vault!`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+async function activateKey(keyId) {
+  const target = state.keyVault.find(k => k.id === keyId);
+  if (!target) return;
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/keys/vault/${keyId}/activate`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Gagal mengaktifkan API key');
+    await refreshKeysFromBackend();
+    showToast(`🔑 Key aktif dialihkan ke: ${target.label}`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+async function removeVaultKey(keyId) {
+  const idx = state.keyVault.findIndex(k => k.id === keyId);
+  if (idx === -1) return;
+  const removed = state.keyVault[idx];
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/keys/vault/${keyId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Gagal menghapus API key');
+    await refreshKeysFromBackend();
+    showToast(`🗑️ API Key "${removed.label}" dihapus dari Vault`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+// ============================================================
+// ACTIONS: USER MANAGEMENT
+// ============================================================
+function openUserModal(userId = null) {
+  const modalTitle = document.getElementById('userModalTitle');
+  if (userId) {
+    const u = state.users.find(x => x.id === userId);
+    if (!u) return;
+    modalTitle.textContent = '✏️ Edit User — ' + u.name;
+    document.getElementById('editUserId').value = u.id;
+    document.getElementById('usrName').value = u.name;
+    document.getElementById('usrEmail').value = u.email;
+    document.getElementById('usrRole').value = u.role;
+    document.getElementById('usrStatus').value = u.status;
+    document.getElementById('usrQuotaLimit').value = u.quotaLimit;
+    document.getElementById('usrRateLimit').value = u.rateLimitPerMin || 30;
+    document.getElementById('usrRiverAccess').checked = u.riverAccess !== false;
+  } else {
+    modalTitle.textContent = '➕ Tambah User Baru';
+    document.getElementById('editUserId').value = '';
+    document.getElementById('usrName').value = '';
+    document.getElementById('usrEmail').value = '';
+    document.getElementById('usrRole').value = 'creator';
+    document.getElementById('usrStatus').value = 'active';
+    document.getElementById('usrQuotaLimit').value = 500;
+    document.getElementById('usrRateLimit').value = 30;
+    document.getElementById('usrRiverAccess').checked = true;
+  }
+  document.getElementById('userModalBackdrop').classList.add('open');
+}
+
+function closeUserModal() {
+  document.getElementById('userModalBackdrop').classList.remove('open');
+}
+
+async function saveUserModal() {
+  const editId = document.getElementById('editUserId').value;
+  const name = document.getElementById('usrName').value.trim();
+  const email = document.getElementById('usrEmail').value.trim().toLowerCase();
+  const role = document.getElementById('usrRole').value;
+  const status = document.getElementById('usrStatus').value;
+  const quotaLimit = Number(document.getElementById('usrQuotaLimit').value || 500);
+  const rateLimitPerMin = Number(document.getElementById('usrRateLimit').value || 30);
+  const riverAccess = document.getElementById('usrRiverAccess').checked;
+
+  if (!name || !email) {
+    showToast('⚠️ Nama dan Email wajib diisi!');
+    return;
+  }
+
+  if (editId) {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/api/admin/users/${editId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, role, status, quotaLimit, rateLimitPerMin, riverAccess })
+      });
+      if (!response.ok) throw new Error('Gagal memperbarui user');
+      const data = await response.json();
+      const userIndex = state.users.findIndex(item => item.id === editId);
+      if (userIndex !== -1) state.users[userIndex] = data.user;
+      saveLocalState();
+      showToast(`✅ Data user ${name} berhasil diperbarui!`);
+    } catch (error) {
+      showToast(`⚠️ ${error.message}`);
+      return;
+    }
+  } else {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/api/admin/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, role, status, quotaLimit, rateLimitPerMin, riverAccess })
+      });
+      if (!response.ok) throw new Error('Gagal membuat user');
+      const data = await response.json();
+      state.users.unshift(data.user);
+      revealedTokens[data.user.id] = data.oneTimeApiToken;
+      saveLocalState();
+      showToast(`✅ User "${name}" dibuat. Salin token sekarang; token hanya ditampilkan sekali.`);
+    } catch (error) {
+      showToast(`⚠️ ${error.message}`);
+      return;
+    }
+  }
+
+  renderAll();
+  closeUserModal();
+}
+
+async function toggleUserStatus(userId) {
+  const user = state.users.find(item => item.id === userId);
+  if (!user) return;
+  const status = user.status === 'active' ? 'suspended' : 'active';
+
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    if (!response.ok) throw new Error('Gagal mengubah status user');
+    const data = await response.json();
+    Object.assign(user, data.user);
+    saveLocalState();
+    renderAll();
+    showToast(`Status ${user.name}: ${user.status.toUpperCase()}`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+async function rotateUserToken(userId) {
+  const user = state.users.find(item => item.id === userId);
+  if (!user) return;
+
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/users/${userId}/regenerate-token`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Gagal merotasi token user');
+    const data = await response.json();
+    Object.assign(user, data.user);
+    revealedTokens[userId] = data.oneTimeApiToken;
+    saveLocalState();
+    renderAll();
+    showToast(`🔄 Token baru dibuat untuk ${user.name}. Salin sekarang; token hanya ditampilkan sekali.`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+async function resetUserQuota(userId) {
+  const user = state.users.find(item => item.id === userId);
+  if (!user) return;
+
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quotaUsed: 0 })
+    });
+    if (!response.ok) throw new Error('Gagal mereset kuota user');
+    const data = await response.json();
+    Object.assign(user, data.user);
+    saveLocalState();
+    renderAll();
+    showToast(`0️⃣ Kuota render ${user.name} di-reset ke 0`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+async function deleteUserById(userId) {
+  const user = state.users.find(item => item.id === userId);
+  if (!user) return;
+
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/users/${userId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Gagal menghapus user');
+    state.users = state.users.filter(item => item.id !== userId);
+    delete revealedTokens[userId];
+    saveLocalState();
+    renderAll();
+    showToast(`🗑️ User ${user.name} dihapus`);
+  } catch (error) {
+    showToast(`⚠️ ${error.message}`);
+  }
+}
+
+// ============================================================
+// LIVE RIVER AI STREAM PLAYGROUND
+// ============================================================
+function setPlaygroundPreset(type) {
+  if (type === 'story') {
+    document.getElementById('pgPrompt').value = 'Tell me a story.';
+  } else if (type === 'validate') {
+    document.getElementById('pgPrompt').value = 'Validate deterministic window.renderFrame(t) HTML animation for 1080p 60fps Playwright capture and return optimization checklist.';
+  } else if (type === 'glitch') {
+    document.getElementById('pgPrompt').value = 'Create a deterministic window.renderFrame(t) HTML5 Canvas snippet for a glowing neon title AI 2026 at 60fps.';
+  }
+  regeneratePgConvId();
+}
+
+function regeneratePgConvId() {
+  document.getElementById('pgConvId').value = generateUuidLower();
+}
+
+function regenerateFormConvId() {
+  document.getElementById('cfgConversationId').value = generateUuidLower();
+}
+
+async function testRiverKeyFromForm() {
+  await saveApiKeysConfig();
+  switchTabByName('playground');
+  await runPlaygroundStream();
+}
+
+function buildPlaygroundEndpoint(baseUrl) {
+  if (baseUrl.endsWith('/v1/chat/completions')) return baseUrl;
+  if (baseUrl.endsWith('/v1')) return `${baseUrl}/chat/completions`;
+  return `${baseUrl}/v1/chat/completions`;
+}
+
+function buildPlaygroundPayload(provider, config, prompt) {
+  const stream = document.getElementById('pgStream').checked;
+  const payload = {
+    model: document.getElementById('pgModel').value.trim() || config.model || provider.model,
+    stream,
+    temperature: Number(config.temperature ?? 0.7),
+    max_tokens: Number(config.maxTokens ?? 2048)
+  };
+  if (provider.hasConversationHeader) {
+    payload.chat_template_kwargs = { enable_thinking: document.getElementById('pgThinking').checked };
+  }
+  payload.messages = [{ role: 'user', content: prompt }];
+  return payload;
+}
+
+async function runPlaygroundStream() {
+  const provider = getActiveProvider();
+  const config = getActiveProviderConfig();
+  const baseUrl = (config.baseUrl || provider.baseUrl).replace(/\/+$/, '');
+  const endpoint = buildPlaygroundEndpoint(baseUrl);
+  const convId = (document.getElementById('pgConvId').value.trim() || generateUuidLower()).toLowerCase();
+  document.getElementById('pgConvId').value = convId;
+  const prompt = document.getElementById('pgPrompt').value.trim() || 'Tell me a story.';
+  const reqPayload = buildPlaygroundPayload(provider, config, prompt);
+
+  const outBox = document.getElementById('pgOutputBox');
+  const rawBox = document.getElementById('pgRawSseBox');
+  const telemetry = document.getElementById('pgTelemetry');
+
+  outBox.textContent = '';
+  rawBox.textContent =
+`POST ${endpoint}
+Authorization: Bearer [server-managed secret]
+Content-Type: application/json${provider.hasConversationHeader ? `\nX-River-Conversation-Id: ${convId}` : ''}
+
+Request Body:
+${JSON.stringify(reqPayload, null, 2)}
+----------------------------------------
+`;
+
+  const startedAt = performance.now();
+  telemetry.textContent = `⏳ Menghubungi ${endpoint} (${provider.name})...`;
+
+  try {
+    const response = await authenticatedFetch(`${API_BASE}/api/admin/ai/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerId: provider.id,
+        prompt,
+        stream: reqPayload.stream,
+        enableThinking: document.getElementById('pgThinking').checked,
+        conversationId: convId,
+        temperature: reqPayload.temperature,
+        maxTokens: reqPayload.max_tokens
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || `${provider.name} test gagal`);
+    outBox.textContent = result.content || '';
+    rawBox.textContent += JSON.stringify({
+      ok: result.ok,
+      mode: result.mode,
+      providerId: result.providerId,
+      endpoint: result.endpoint,
+      latencyMs: result.latencyMs,
+      conversationId: result.conversationId
+    }, null, 2);
+  } catch (error) {
+    outBox.textContent = error.message;
+    rawBox.textContent += `\nError: ${error.message}`;
+    telemetry.textContent = `${provider.name} test gagal`;
+    return;
+  }
+
+  const elapsed = Math.round(performance.now() - startedAt);
+  telemetry.textContent = `✅ Stream selesai dalam ${elapsed} ms • ${provider.name} • Model: ${reqPayload.model} • Conversation ID: ${convId}`;
+
+  // Usage counters are server-owned; this only refreshes the local view.
+  await refreshKeysFromBackend();
+  addLocalAudit('Admin Console', 'AI_PROVIDER_STREAM_TEST', `Streamed ${provider.name} ${reqPayload.model} (${elapsed}ms)`);
+}
+
+// ============================================================
+// UTILITIES & EXPORT
+// ============================================================
+function switchTab(tabId, btnEl) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  if (btnEl) btnEl.classList.add('active');
+}
+
+function switchTabByName(tabId) {
+  const buttons = document.querySelectorAll('.nav-btn');
+  const map = { overview: 0, apikeys: 1, users: 2, playground: 3, audit: 4 };
+  switchTab(tabId, buttons[map[tabId]]);
+}
+
+function toggleSecretInput(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function copyInputValue(id) {
+  const val = document.getElementById(id).value;
+  copyText(val, 'Disalin ke clipboard!');
+}
+
+function copyText(text, msg = 'Disalin!') {
+  navigator.clipboard?.writeText(text);
+  showToast('📋 ' + msg);
+}
+
+function copyCurlCommand() {
+  const text = buildCurlString(document.getElementById('showRealKeyInCurl')?.checked);
+  copyText(text, `Perintah cURL ${getActiveProvider().name} berhasil disalin!`);
+}
+
+function generateNewMasterToken() {
+  document.getElementById('cfgVpsToken').value = 'ms_master_' + generateUuidLower().replace(/-/g, '');
+  document.getElementById('cfgVpsToken').type = 'text';
+  showToast('🔄 Master VPS Token baru digenerate (klik Simpan untuk menerapkan)');
+}
+
+function downloadEnvFile() {
+  const river = state.aiProviders.river;
+  const deepseek = state.aiProviders.deepseek;
+  const envContent = `# Generated template. Fill secrets through deployment secret store.
+AI_PROVIDER=${getActiveProviderId()}
+
+RIVER_API_BASE_URL=${river.baseUrl}
+RIVER_API_KEY=
+RIVER_MODEL=${river.model}
+RIVER_STREAM=${river.stream}
+RIVER_TEMPERATURE=${river.temperature}
+RIVER_MAX_TOKENS=${river.maxTokens}
+RIVER_ENABLE_THINKING=${Boolean(river.chatTemplateKwargs?.enable_thinking)}
+
+DEEPSEEK_API_BASE_URL=${deepseek.baseUrl}
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=${deepseek.model}
+
+HIGGSFIELD_API_URL=${state.serviceKeys.higgsfieldApiUrl || 'https://api.higgsfield.ai'}
+HIGGSFIELD_API_KEY=
+VPS_TOKEN=
+ADMIN_TOKEN=
+HMAC_SECRET=
+WEBHOOK_URL=${state.serviceKeys.webhookUrl || ''}
+`;
+  const blob = new Blob([envContent], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '.env.motion-studio';
+  a.click();
+  showToast('📥 File .env berhasil diunduh!');
+}
+
+function exportConfigJson() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'motion-studio-admin-config.json';
+  a.click();
+  showToast('📦 Konfigurasi JSON berhasil diunduh!');
+}
+
+function exportAuditLogs() {
+  const blob = new Blob([JSON.stringify(state.auditLogs, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'motion-studio-audit-logs.json';
+  a.click();
+  showToast('📥 Audit Log berhasil diunduh!');
+}
+
+// Init
+syncFromBackend();
+</script>
+</body>
+</html>

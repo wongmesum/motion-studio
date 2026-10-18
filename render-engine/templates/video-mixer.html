@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Motion Studio — 3D & Video/Image Compositor Mixer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #05070f;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="mixer" width="1920" height="1080"></canvas>
+<script>
+const canvas = document.getElementById('mixer');
+const ctx = canvas.getContext('2d');
+const W = 1920, H = 1080;
+
+function drawMixer(t) {
+  // Deep background
+  ctx.fillStyle = '#05070f';
+  ctx.fillRect(0, 0, W, H);
+
+  // 1. 3D Wireframe Tunnel Projection (Deterministic Math)
+  const cx = W / 2;
+  const cy = H / 2 - 40;
+  for (let ring = 0; ring < 14; ring++) {
+    const depth = ((ring - (t * 2.2) % 1 + 14) % 14) / 14;
+    if (depth <= 0.02) continue;
+    const radius = Math.pow(depth, 1.8) * 950;
+    const alpha = Math.sin(depth * Math.PI) * 0.45;
+
+    ctx.strokeStyle = `hsla(${195 + ring * 8}, 95%, 60%, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let s = 0; s <= 6; s++) {
+      const ang = (s / 6) * Math.PI * 2 + t * 0.35 + depth * 0.6;
+      const px = cx + Math.cos(ang) * radius;
+      const py = cy + Math.sin(ang) * radius * 0.62;
+      if (s === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  // 2. Dual Picture-in-Picture (PiP) Video/Image Compositor Frames
+  const cards = [
+    { x: 180, y: 210, w: 680, h: 420, label: 'CAM 01 • HIGGSFIELD VIDEO STREAM', hue: 190 },
+    { x: 1060, y: 210, w: 680, h: 420, label: 'CAM 02 • SHARP COMPOSITE LAYER', hue: 315 },
+  ];
+
+  cards.forEach((card, idx) => {
+    const floatY = Math.sin(t * 2 + idx * 1.5) * 12;
+    const y = card.y + floatY;
+
+    // Card shadow & glass body
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+    ctx.strokeStyle = `hsla(${card.hue}, 90%, 60%, 0.75)`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(card.x, y, card.w, card.h, 18);
+    ctx.fill();
+    ctx.stroke();
+
+    // Simulated dynamic video wave inside PiP
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(card.x + 12, y + 52, card.w - 24, card.h - 64, 12);
+    ctx.clip();
+
+    const vg = ctx.createLinearGradient(card.x, y, card.x + card.w, y + card.h);
+    vg.addColorStop(0, `hsla(${card.hue}, 80%, 20%, 0.9)`);
+    vg.addColorStop(1, '#090d1a');
+    ctx.fillStyle = vg;
+    ctx.fillRect(card.x, y, card.w, card.h);
+
+    ctx.strokeStyle = `hsla(${card.hue}, 100%, 70%, 0.65)`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let px = 0; px < card.w; px += 8) {
+      const wave = Math.sin(px * 0.02 + t * 5 + idx) * 55 * Math.cos(t * 1.5 + px * 0.005);
+      const wy = y + card.h / 2 + 20 + wave;
+      if (px === 0) ctx.moveTo(card.x + px, wy);
+      else ctx.lineTo(card.x + px, wy);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Header bar
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '700 20px monospace';
+    ctx.fillText(card.label, card.x + 24, y + 34);
+  });
+
+  // 3. Audio Spectrum Visualizer Bars (Bottom Dock)
+  const barCount = 48;
+  const barWidth = 22;
+  const gap = 10;
+  const totalW = barCount * (barWidth + gap);
+  const startX = (W - totalW) / 2;
+  const baseY = H - 110;
+
+  for (let i = 0; i < barCount; i++) {
+    const n = Math.abs(Math.sin(i * 0.35 + t * 6.5) * Math.cos(i * 0.15 - t * 4.2));
+    const bh = 16 + n * 120;
+    ctx.fillStyle = `hsl(${185 + (i / barCount) * 130}, 90%, 60%)`;
+    ctx.beginPath();
+    ctx.roundRect(startX + i * (barWidth + gap), baseY - bh, barWidth, bh, 6);
+    ctx.fill();
+  }
+
+  // Title Banner
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '800 32px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('MULTI-TRACK VIDEO & 3D SHADER COMPOSITOR • 1080P 60FPS', W / 2, H - 48);
+  ctx.textAlign = 'left';
+}
+
+window.renderFrame = function(t) {
+  window.__MANUAL_RENDER__ = true;
+  drawMixer(t);
+};
+
+drawMixer(0);
+let startTs = performance.now();
+function loop(now) {
+  if (!window.__MANUAL_RENDER__) {
+    drawMixer((now - startTs) / 1000);
+    requestAnimationFrame(loop);
+  }
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

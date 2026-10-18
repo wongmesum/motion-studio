@@ -1,0 +1,16 @@
+{
+  "name": "motion-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server Connector for ChatGPT to orchestrate Higgsfield AI, DeepSeek Render Engineer, and VPS Render Farm",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.7",
+    "form-data": "^4.0.0",
+    "zod": "^3.23.8"
+  }
+}

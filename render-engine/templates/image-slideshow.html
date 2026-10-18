@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Motion Studio — Smooth Image Slideshow & Ken Burns</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #090d16;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="stage" width="1920" height="1080"></canvas>
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const W = 1920, H = 1080;
+
+const SLIDES = [
+  {
+    title: '01 / HIGGSFIELD AI GENERATION',
+    subtitle: 'Generate high-resolution visual assets directly from ChatGPT via MCP',
+    c1: '#0f172a',
+    c2: '#1d4ed8',
+    accent: '#38bdf8',
+  },
+  {
+    title: '02 / DEEPSEEK RENDER ENGINEER',
+    subtitle: '5-Stage automated gate: Validate, Optimize, 3-Frame Dry Run, Auto-Fix, Approve',
+    c1: '#1e1b4b',
+    c2: '#6d28d9',
+    accent: '#c084fc',
+  },
+  {
+    title: '03 / PLAYWRIGHT + FFMPEG FARM',
+    subtitle: 'Parallel chunked 1080p @ 60fps rendering with H.264 / H.265 / SVT-AV1 / NVENC',
+    c1: '#064e3b',
+    c2: '#047857',
+    accent: '#34d399',
+  },
+];
+
+const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+
+function drawSlideContent(slide, index, localT, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Ken Burns Zoom & Pan simulation
+  const zoom = 1 + localT * 0.08;
+  const panX = (index % 2 === 0 ? -1 : 1) * localT * 30;
+  ctx.translate(W / 2 + panX, H / 2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-W / 2, -H / 2);
+
+  // Gradient Backdrop
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, slide.c1);
+  g.addColorStop(1, slide.c2);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Geometric art cards (simulasi gambar komposit)
+  for (let i = 0; i < 4; i++) {
+    const cx = 380 + i * 380;
+    const cy = H / 2 + Math.sin(localT * 1.8 + i) * 45;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.strokeStyle = slide.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(cx - 140, cy - 200, 280, 400, 24);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Lower-third Caption Card
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const cardSlide = easeInOutCubic(Math.min(1, localT / 0.6));
+  const cardY = H - 230 + (1 - cardSlide) * 60;
+
+  ctx.fillStyle = 'rgba(9, 13, 22, 0.82)';
+  ctx.beginPath();
+  ctx.roundRect(110, cardY, 1280, 150, 18);
+  ctx.fill();
+
+  ctx.fillStyle = slide.accent;
+  ctx.fillRect(110, cardY, 8, 150);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '800 44px Inter, sans-serif';
+  ctx.fillText(slide.title, 150, cardY + 66);
+
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '500 26px Inter, sans-serif';
+  ctx.fillText(slide.subtitle, 150, cardY + 114);
+  ctx.restore();
+}
+
+function drawSlideshow(t) {
+  const cycle = t % 10;
+  const slideDuration = 10 / SLIDES.length; // ~3.33s per slide
+  const currentIdx = Math.min(SLIDES.length - 1, Math.floor(cycle / slideDuration));
+  const nextIdx = (currentIdx + 1) % SLIDES.length;
+  const localT = (cycle - currentIdx * slideDuration) / slideDuration; // 0..1
+
+  ctx.clearRect(0, 0, W, H);
+  drawSlideContent(SLIDES[currentIdx], currentIdx, localT, 1);
+
+  // Smooth Crossfade + Directional Wipe pada 25% akhir setiap slide
+  if (localT > 0.75) {
+    const tr = easeInOutCubic((localT - 0.75) / 0.25);
+    drawSlideContent(SLIDES[nextIdx], nextIdx, 0, tr);
+  }
+}
+
+window.renderFrame = function(t) {
+  window.__MANUAL_RENDER__ = true;
+  drawSlideshow(t);
+};
+
+drawSlideshow(0);
+let startTs = performance.now();
+function loop(now) {
+  if (!window.__MANUAL_RENDER__) {
+    drawSlideshow((now - startTs) / 1000);
+    requestAnimationFrame(loop);
+  }
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

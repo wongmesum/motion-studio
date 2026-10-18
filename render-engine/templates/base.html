@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Motion Studio — Base Template (GSAP + Canvas 1080p)</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #0a0a14;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    color: #ffffff;
+  }
+  canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .badge {
+    padding: 10px 28px;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.14);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    color: #38bdf8;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .title {
+    font-size: 118px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #ffffff 0%, #93c5fd 50%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-align: center;
+    line-height: 1.08;
+  }
+  .subtitle {
+    margin-top: 24px;
+    font-size: 36px;
+    color: #94a3b8;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<div class="overlay">
+  <div class="badge" id="badge">RENDER PIPELINE 1080P 60FPS</div>
+  <h1 class="title" id="title">MOTION STUDIO</h1>
+  <p class="subtitle" id="subtitle">Playwright • GSAP • Remotion • Sharp • FFmpeg</p>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1920, H = 1080;
+
+// Easing Helpers
+const easeOutExpo = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
+const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+// GSAP Deterministic Timeline (Paused)
+let tl = null;
+if (window.gsap) {
+  tl = gsap.timeline({ paused: true });
+  tl.fromTo('#badge', { y: -40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: 'power3.out' }, 0.1)
+    .fromTo('#title', { y: 90, opacity: 0, scale: 0.92 }, { y: 0, opacity: 1, scale: 1, duration: 1.1, ease: 'expo.out' }, 0.25)
+    .fromTo('#subtitle', { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: 'power2.out' }, 0.55)
+    .to('#title', { scale: 1.04, duration: 4, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 1.5);
+}
+
+// Fungsi Deterministik Utama — Dipanggil oleh Playwright per frame
+window.renderFrame = function(time) {
+  window.__MANUAL_RENDER__ = true;
+  drawFrame(time);
+};
+
+function drawFrame(time) {
+  if (tl) {
+    tl.seek(time % 10);
+  } else {
+    // Fallback jika CDN GSAP offline
+    const p = easeOutExpo(Math.min(1, time / 1.0));
+    document.getElementById('title').style.opacity = String(p);
+    document.getElementById('title').style.transform = `translateY(${(1 - p) * 60}px)`;
+  }
+
+  // Background Gradient
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, '#070712');
+  g.addColorStop(0.5, '#11102e');
+  g.addColorStop(1, '#1e113a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle Grid
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.05)';
+  ctx.lineWidth = 1;
+  const gridOffset = (time * 30) % 80;
+  for (let x = 0; x < W; x += 80) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+  for (let y = gridOffset; y < H; y += 80) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+
+  // Animated Glowing Orbs (Deterministik terhadap time)
+  for (let i = 0; i < 6; i++) {
+    const phase = time * 0.75 + i * 1.05;
+    const x = W / 2 + Math.cos(phase) * (460 + i * 40);
+    const y = H / 2 + Math.sin(phase * 1.3) * (260 + i * 20);
+    const r = 180 + Math.sin(phase * 2) * 55;
+
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const hue = (i * 55 + time * 28) % 360;
+    grad.addColorStop(0, `hsla(${hue}, 85%, 62%, 0.42)`);
+    grad.addColorStop(1, 'hsla(0, 0%, 0%, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Progress bar tipis di bagian bawah
+  const progress = (time % 10) / 10;
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.75)';
+  ctx.fillRect(0, H - 6, W * easeInOutCubic(progress), 6);
+}
+
+// Auto-preview jika dibuka langsung di browser oleh user
+drawFrame(0);
+let startTs = performance.now();
+function loop(now) {
+  if (!window.__MANUAL_RENDER__) {
+    drawFrame((now - startTs) / 1000);
+    requestAnimationFrame(loop);
+  }
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
