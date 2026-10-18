@@ -51,6 +51,32 @@ test('legacy riverConfig migrates into provider-aware configuration', async () =
   assert.equal(store.keyVault[0].providerId, 'river');
 });
 
+test('provider API keys persist outside admin-store.json', async () => {
+  await initConfigStore();
+
+  const adminStoreRaw = await fs.readFile(path.join(dataDir, 'admin-store.json'), 'utf8');
+  assert.equal(adminStoreRaw.includes('legacy-river-secret-key'), false);
+  assert.equal(adminStoreRaw.includes('legacy-vault-secret'), false);
+
+  const generated = JSON.parse(
+    await fs.readFile(path.join(dataDir, 'generated-secrets.json'), 'utf8')
+  );
+  assert.equal(generated.aiProviderKeys.river, 'legacy-river-secret-key');
+  assert.equal(generated.vaultKeys['legacy-key'], 'legacy-vault-secret');
+});
+
+test('provider and vault keys survive a restart from generated-secrets.json', async () => {
+  await initConfigStore();
+
+  // Fresh module instance reproduces a process restart against the same data directory.
+  const restarted = await import(`../vps-server/config-store.js?restart=${Date.now()}`);
+  const store = await restarted.initConfigStore();
+
+  assert.equal(store.aiProviders.river.apiKey, 'legacy-river-secret-key');
+  assert.equal(store.aiProviders.river.baseUrl, 'https://legacy-river.example');
+  assert.equal(store.keyVault[0].apiKey, 'legacy-vault-secret');
+});
+
 test('public AI projection masks secrets for every provider', async () => {
   const projected = projectPublicAiConfig({
     activeAiProvider: 'deepseek',

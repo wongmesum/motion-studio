@@ -28,15 +28,34 @@ test('runtime secrets replace placeholders and persist outside config store', as
   assert.ok(serviceKeys.adminToken.length > 32);
   assert.ok(serviceKeys.hmacSecret.length > 32);
 
-  const persisted = JSON.parse(await fs.readFile(path.join(dataDir, 'generated-secrets.json'), 'utf8'));
+  const generatedSecretsPath = path.join(dataDir, 'generated-secrets.json');
+  const persisted = JSON.parse(await fs.readFile(generatedSecretsPath, 'utf8'));
   assert.equal(persisted.vpsToken, serviceKeys.vpsToken);
   assert.equal(persisted.adminToken, serviceKeys.adminToken);
   assert.equal(persisted.hmacSecret, serviceKeys.hmacSecret);
+  if (process.platform !== 'win32') {
+    const mode = (await fs.stat(generatedSecretsPath)).mode & 0o777;
+    assert.equal(mode, 0o600);
+  }
 
   const adminStore = await fs.readFile(path.join(dataDir, 'admin-store.json'), 'utf8');
   assert.ok(!adminStore.includes(serviceKeys.vpsToken));
   assert.ok(!adminStore.includes(serviceKeys.adminToken));
   assert.ok(!adminStore.includes(serviceKeys.hmacSecret));
+});
+
+test('loose permissions on an existing secrets file are tightened', async () => {
+  if (process.platform === 'win32') return;
+
+  const generatedSecretsPath = path.join(dataDir, 'generated-secrets.json');
+  await fs.chmod(generatedSecretsPath, 0o666);
+
+  await import(`../vps-server/config-store.js?chmod=${Date.now()}`).then((module) =>
+    module.initConfigStore()
+  );
+
+  const mode = (await fs.stat(generatedSecretsPath)).mode & 0o777;
+  assert.equal(mode, 0o600);
 });
 
 test('public projections never expose raw secrets', async () => {

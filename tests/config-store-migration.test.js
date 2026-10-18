@@ -40,7 +40,17 @@ test('legacy secrets migrate before generated fallback replaces them', async () 
   const generated = JSON.parse(
     await fs.readFile(path.join(dataDir, 'generated-secrets.json'), 'utf8')
   );
-  assert.deepEqual(generated, legacySecrets);
+  assert.deepEqual(
+    {
+      vpsToken: generated.vpsToken,
+      adminToken: generated.adminToken,
+      hmacSecret: generated.hmacSecret,
+      webhookSecret: generated.webhookSecret,
+    },
+    legacySecrets
+  );
+  assert.deepEqual(generated.aiProviderKeys, { river: '', deepseek: '' });
+  assert.deepEqual(generated.vaultKeys, {});
 
   const adminStore = await fs.readFile(path.join(dataDir, 'admin-store.json'), 'utf8');
   for (const secret of Object.values(legacySecrets)) {

@@ -29,18 +29,45 @@ function createSecret(prefix) {
 }
 
 // Secrets live only in the restricted generated-secrets file, never in admin-store.json.
-const SECRET_FIELDS = ['vpsToken', 'adminToken', 'hmacSecret', 'webhookSecret'];
+const SERVICE_SECRET_FIELDS = ['vpsToken', 'adminToken', 'hmacSecret', 'webhookSecret'];
 
-function pickSecrets(source = {}) {
-  return Object.fromEntries(SECRET_FIELDS.map((field) => [field, source[field] || '']));
+function pickServiceSecrets(source = {}) {
+  return Object.fromEntries(
+    SERVICE_SECRET_FIELDS.map((field) => [field, source[field] || ''])
+  );
+}
+
+function buildPersistedSecrets(store) {
+  const aiProviderKeys = Object.fromEntries(
+    AI_PROVIDER_IDS.map((providerId) => [
+      providerId,
+      store.aiProviders?.[providerId]?.apiKey || '',
+    ])
+  );
+  const vaultKeys = Object.fromEntries(
+    (store.keyVault || [])
+      .filter((key) => key.id && key.apiKey)
+      .map((key) => [key.id, key.apiKey])
+  );
+  return {
+    ...pickServiceSecrets(store.serviceKeys),
+    aiProviderKeys,
+    vaultKeys,
+  };
 }
 
 async function persistRuntimeSecrets(secrets) {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(GENERATED_SECRETS_FILE, JSON.stringify(pickSecrets(secrets), null, 2), {
+  await fs.writeFile(GENERATED_SECRETS_FILE, JSON.stringify(secrets, null, 2), {
     encoding: 'utf8',
     mode: 0o600,
   });
+  // writeFile only applies mode at creation, so an existing file keeps its old bits.
+  try {
+    await fs.chmod(GENERATED_SECRETS_FILE, 0o600);
+  } catch (error) {
+    throw new Error(`Failed to restrict generated-secrets permissions: ${error.message}`);
+  }
 }
 
 async function loadStoredRuntimeSecrets() {
@@ -275,6 +302,7 @@ export async function initConfigStore() {
     memoryStore.keyVault = Array.isArray(memoryStore.keyVault) ? memoryStore.keyVault : [];
     memoryStore.keyVault = memoryStore.keyVault.map((key) => ({
       ...key,
+      apiKey: key.apiKey || storedSecrets.vaultKeys?.[key.id] || '',
       providerId: isSupportedAiProvider(key.providerId) ? key.providerId : 'river',
     }));
     memoryStore.users = Array.isArray(memoryStore.users) ? memoryStore.users : [];
@@ -284,13 +312,14 @@ export async function initConfigStore() {
   }
 
   const runtimeSecrets = resolveRuntimeSecrets(storedSecrets, memoryStore.serviceKeys);
-  for (const field of SECRET_FIELDS) {
+  for (const field of SERVICE_SECRET_FIELDS) {
     memoryStore.serviceKeys[field] = runtimeSecrets[field] || '';
   }
-  await persistRuntimeSecrets(runtimeSecrets);
 
   for (const providerId of AI_PROVIDER_IDS) {
     const provider = memoryStore.aiProviders[providerId];
+    const storedProviderKey = storedSecrets.aiProviderKeys?.[providerId] || '';
+    if (!provider.apiKey && storedProviderKey) provider.apiKey = storedProviderKey;
     if (!provider.apiKey) {
       const vaultKey = memoryStore.keyVault.find((key) => key.providerId === providerId && key.apiKey);
       if (vaultKey) provider.apiKey = vaultKey.apiKey;
@@ -302,17 +331,35 @@ export async function initConfigStore() {
   return memoryStore;
 }
 
+/**
+ * Strip every secret before writing admin-store.json. AI provider keys and vault keys
+ * join the service secrets in generated-secrets.json so the main store stays safe to
+ * copy, diff, or back up.
+ */
 export async function saveConfigStore() {
   if (!memoryStore) return;
   await fs.mkdir(DATA_DIR, { recursive: true });
-  const serviceKeys = { ...memoryStore.serviceKeys };
-  const runtimeSecrets = pickSecrets(serviceKeys);
-  for (const field of SECRET_FIELDS) delete serviceKeys[field];
 
-  await persistRuntimeSecrets(runtimeSecrets);
+  const serviceKeys = { ...memoryStore.serviceKeys };
+  for (const field of SERVICE_SECRET_FIELDS) delete serviceKeys[field];
+
+  const aiProviders = { ...memoryStore.aiProviders };
+  for (const providerId of AI_PROVIDER_IDS) {
+    const { apiKey: _apiKey, ...rest } = aiProviders[providerId] || {};
+    aiProviders[providerId] = rest;
+  }
+
+  const keyVault = memoryStore.keyVault.map(({ apiKey: _apiKey, ...rest }) => rest);
+  const { apiKey: _riverApiKey, ...riverConfig } = memoryStore.riverConfig || {};
+
+  await persistRuntimeSecrets(buildPersistedSecrets(memoryStore));
   await fs.writeFile(
     STORE_FILE,
-    JSON.stringify({ ...memoryStore, serviceKeys }, null, 2),
+    JSON.stringify(
+      { ...memoryStore, serviceKeys, aiProviders, keyVault, riverConfig },
+      null,
+      2
+    ),
     'utf8'
   );
 }
