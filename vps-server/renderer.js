@@ -4,9 +4,11 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { getCachedRender, saveRenderToCache } from './cache.js';
-import { prepareAssets, publishOutput } from './storage.js';
+import { prepareAssets, prepareAudioAsset, publishOutput } from './storage.js';
 import { runEngineerPipeline } from './deepseek-engineer.js';
 import { logger, metrics, recordRenderDuration } from './logger.js';
+import { resolveFfmpegBinary } from './ffmpeg.js';
+import { buildAudioInputArgs } from './renderer-args.js';
 import { applyRenderNetworkPolicy } from './security/network-policy.js';
 
 const CPU_CORES = os.cpus().length;
@@ -101,9 +103,7 @@ function encodeVideoFFmpeg({ framesDir, outputFile, fps, codec, preset, crf, aud
       '-i', path.join(framesDir, 'frame-%05d.jpg'),
     ];
 
-    if (audioPath) {
-      args.push('-i', audioPath, '-c:a', 'aac', '-b:a', '192k', '-shortest');
-    }
+    args.push(...buildAudioInputArgs(audioPath));
 
     args.push(
       ...codecBuilder(preset, crf),
@@ -114,16 +114,28 @@ function encodeVideoFFmpeg({ framesDir, outputFile, fps, codec, preset, crf, aud
       outputFile
     );
 
-    const ff = spawn('ffmpeg', args);
+    const ff = spawn(resolveFfmpegBinary(), args);
     let stderrLog = '';
+    // A spawn failure emits both 'error' and 'close'; count the failure once.
+    let failureRecorded = false;
+    const recordFailure = () => {
+      if (failureRecorded) return;
+      failureRecorded = true;
+      metrics.ffmpegFailuresTotal += 1;
+    };
+
     ff.stderr.on('data', (d) => {
       stderrLog += d.toString();
+    });
+    ff.on('error', (error) => {
+      recordFailure();
+      reject(new Error(`Failed to start FFmpeg: ${error.message}`));
     });
     ff.on('close', (code) => {
       if (code === 0) {
         resolve(outputFile);
       } else {
-        metrics.ffmpegFailuresTotal += 1;
+        recordFailure();
         reject(new Error(`FFmpeg exited with code ${code}: ${stderrLog.slice(-300)}`));
       }
     });
@@ -186,7 +198,10 @@ export async function renderJob(jobId, jobData, onProgress = () => {}) {
 
   // 2. Download & Optimasi Assets (Sharp)
   onProgress({ status: 'preparing_assets', progress: 8 });
-  const preparedAssets = await prepareAssets(jobData.assets || [], width, height);
+  const [preparedAssets, preparedAudio] = await Promise.all([
+    prepareAssets(jobData.assets || [], width, height),
+    jobData.audio_url ? prepareAudioAsset(jobData.audio_url) : null,
+  ]);
 
   // Ganti URL remote di HTML dengan path file lokal yang sudah di-cache jika ada
   let workingHtml = jobData.html;
@@ -277,7 +292,7 @@ export async function renderJob(jobId, jobData, onProgress = () => {}) {
     codec,
     preset,
     crf,
-    audioPath: null,
+    audioPath: preparedAudio?.localPath || null,
   });
 
   // 6. Simpan ke Cache & Upload ke Storage

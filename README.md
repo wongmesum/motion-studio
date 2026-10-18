@@ -1,6 +1,6 @@
 # 🎬 Motion Studio — ChatGPT MCP + Higgsfield AI + DeepSeek Engineer + VPS Render Farm
 
-Project produksi lengkap untuk membuat **Motion Graphics 1080p @ 60fps** secara deterministik menggunakan **JavaScript, Playwright, Remotion, GSAP, Three.js, Sharp, dan FFmpeg**, diorkestrasi langsung dari **ChatGPT (via MCP)** dengan **Higgsfield AI** sebagai generator asset dan **DeepSeek Render Engineer** sebagai 5-Stage Automated Quality Gate di dalam VPS.
+Project produksi untuk membuat **Motion Graphics 1080p @ 60fps** secara deterministik menggunakan **JavaScript, Playwright + Chromium Headless, Canvas 2D, GSAP via CDN, Sharp, dan FFmpeg**, diorkestrasi dari **ChatGPT (via MCP)** dengan **Higgsfield AI** sebagai generator asset dan **DeepSeek Render Engineer** sebagai 5-Stage Automated Quality Gate di dalam VPS.
 
 ---
 
@@ -33,10 +33,10 @@ Project produksi lengkap untuk membuat **Motion Graphics 1080p @ 60fps** secara 
 
 ### Peta Stack 5 Pilar yang Diimplementasikan:
 1. **[1] Render Engine**: Playwright + Chromium Headless (`--use-gl=swiftshader`, Parallel Chunked Workers).
-2. **[2] Compositor**: FFmpeg + Remotion (`render-engine/remotion/Composition.jsx`).
+2. **[2] Compositor**: FFmpeg (frame sequence JPEG/PNG → MP4, multi-codec, audio AAC opsional).
 3. **[3] Encoder**: Multi-codec `libx264` (H.264), `libx265` (HEVC), `libsvtav1` (AV1), dan `h264_nvenc` (GPU).
-4. **[4] Motion Layer**: GSAP Timeline (`tl.seek(t)`), Kinetic Glitch DOM/Canvas, Slideshow Ken Burns, Three.js/Canvas 3D Mixer.
-5. **[5] Asset Pipeline & Production Security**: Sharp image resizing/compositing, Content-Addressable SHA-256 Cache, Token + HMAC Auth, Rate Limiting, HTML Sanitizer, Resource Limits, TTL Cleanup, Webhook Callback, dan Prometheus Metrics.
+4. **[4] Motion Layer**: GSAP Timeline via CDN (`tl.seek(t)`), Kinetic Glitch DOM/Canvas, Slideshow Ken Burns, dan Canvas 2D Video Mixer.
+5. **[5] Asset Pipeline & Production Security**: Sharp image resizing/format conversion, Content-Addressable SHA-256 Cache, Token + HMAC Auth, Rate Limiting, HTML Sanitizer, Resource Limits, TTL Cleanup, Webhook Callback, dan Prometheus Metrics.
 
 ---
 
@@ -88,9 +88,7 @@ motion-studio/
 │   │   ├── base.html               # GSAP Timeline + Glowing Bokeh Orbs
 │   │   ├── kinetic-text.html       # Futuristic Neon City + Glitch "AI 2025"
 │   │   ├── image-slideshow.html    # Ken Burns Zoom/Pan + Crossfade & Lower-Third
-│   │   └── video-mixer.html        # 3D Wireframe Tunnel + Dual PiP Video + Audio Spectrum
-│   └── remotion/
-│       └── Composition.jsx         # Komponen React Remotion
+│   │   └── video-mixer.html        # Canvas Wireframe Tunnel + Dual PiP Video + Audio Spectrum
 │
 ├── scripts/
 │   ├── install-vps.sh              # Auto-installer Ubuntu 22.04/24.04
@@ -118,6 +116,21 @@ npm run render:kinetic
 
 # Atau render cepat mode Preview (480p @ 15fps)
 node render.js --template render-engine/templates/kinetic-text.html --preview
+```
+
+### Audio
+
+Server menerima `audio_url` hanya dari URL HTTPS dengan hostname persis dalam
+`RENDER_ALLOWED_HOSTS`. Format yang didukung: MP3, WAV, M4A, dan AAC. Unduhan
+dibatasi oleh `MAX_AUDIO_BYTES` dan `MAX_AUDIO_DOWNLOAD_MS`, lalu divalidasi lewat
+`Content-Type` serta magic bytes sebelum diteruskan ke FFmpeg. Audio yang gagal
+validasi menggagalkan job; sistem tidak membuat video bisu sebagai fallback.
+
+CLI menerima file lokal lewat `--audio`. Path wajib berada di dalam direktori proyek,
+file wajib ada, ukuran wajib dalam batas, serta ekstensi dan magic bytes wajib cocok.
+
+```bash
+node render.js --template render-engine/templates/kinetic-text.html --audio assets/music.mp3
 ```
 
 ### 2. Mode Server VPS Lengkap (Docker Compose)

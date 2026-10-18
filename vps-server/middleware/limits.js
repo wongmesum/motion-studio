@@ -11,6 +11,12 @@ export const JOB_LIMITS = {
   timeoutMs: Number(process.env.JOB_TIMEOUT_MS || 10 * 60 * 1000),
 };
 
+export const AUDIO_LIMITS = {
+  maxBytes: Number(process.env.MAX_AUDIO_BYTES || 25 * 1024 * 1024),
+  downloadTimeoutMs: Number(process.env.MAX_AUDIO_DOWNLOAD_MS || 60_000),
+  maxRedirects: 3,
+};
+
 export function validateJobLimits(job) {
   const duration = Number(job.duration ?? 10);
   const fps = Number(job.fps ?? 60);

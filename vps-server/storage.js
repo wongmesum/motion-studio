@@ -1,9 +1,16 @@
 import axios from 'axios';
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { getAssetCachePath, ensureCacheDirs } from './cache.js';
 import { logger } from './logger.js';
 import { isAllowedRemoteAssetUrl } from './security/network-policy.js';
+import {
+  assertAllowedAudioUrl,
+  detectAudioExtension,
+  downloadAudioAsset,
+  probeAudioDuration,
+} from './security/audio-policy.js';
 
 let sharpModule = null;
 async function getSharp() {
@@ -87,6 +94,35 @@ export async function prepareAssets(assetUrls = [], width = 1920, height = 1080)
   }
 
   return prepared;
+}
+
+export async function prepareAudioAsset(audioUrl, options = {}) {
+  assertAllowedAudioUrl(audioUrl);
+  await ensureCacheDirs();
+  const extension = detectAudioExtension(audioUrl);
+  const cachedPath = getAssetCachePath(`audio:${audioUrl}`, extension);
+
+  try {
+    await fs.access(cachedPath);
+    return { localPath: cachedPath, cached: true };
+  } catch {
+    // Cache miss. Download into a temporary sibling and publish atomically.
+  }
+
+  const { bytes } = await downloadAudioAsset(audioUrl, options);
+  const temporaryPath = `${cachedPath}.${crypto.randomUUID()}.tmp`;
+  const probeAudio = options.probeAudio || probeAudioDuration;
+  try {
+    await fs.writeFile(temporaryPath, bytes, { flag: 'wx' });
+    // Decode before publishing: magic bytes prove the header, not that FFmpeg can read it.
+    await probeAudio(temporaryPath, options);
+    await fs.rename(temporaryPath, cachedPath);
+  } catch (error) {
+    await fs.rm(temporaryPath, { force: true });
+    throw new Error(`Gagal menyimpan cache audio: ${error.message}`);
+  }
+
+  return { localPath: cachedPath, cached: false };
 }
 
 /**
