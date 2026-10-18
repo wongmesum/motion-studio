@@ -9,8 +9,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
-    "axios": "^1.7.7",
-    "form-data": "^4.0.0",
-    "zod": "^3.23.8"
+    "axios": "^1.7.7"
   }
 }

@@ -138,7 +138,7 @@ Your task is to generate or fix HTML5/Canvas/GSAP animations for deterministic f
 Rules:
 1. Must expose window.renderFrame = function(timeInSeconds) { ... }
 2. Never rely on setInterval/setTimeout or uncontrolled CSS infinite animations; calculate all visual states deterministically from timeInSeconds.
-3. Inline all CSS and scripts (except trusted CDNs like cdn.jsdelivr.net for GSAP/Three.js).
+3. Inline all CSS and scripts (except trusted CDNs like cdn.jsdelivr.net for GSAP).
 4. Return valid JSON: { "html": "<!DOCTYPE html>...", "explanation": "..." }`;
   const userPrompt = `Goal: ${goal}
 ${error ? `Previous Render Error:\n${error}\n` : ''}

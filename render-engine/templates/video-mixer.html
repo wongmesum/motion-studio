@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<title>Motion Studio — 3D & Video/Image Compositor Mixer</title>
+<title>Motion Studio — Canvas 2D Video/Image Mixer</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -49,10 +49,10 @@ function drawMixer(t) {
     ctx.stroke();
   }
 
-  // 2. Dual Picture-in-Picture (PiP) Video/Image Compositor Frames
+  // 2. Dual Picture-in-Picture (PiP) canvas frames
   const cards = [
     { x: 180, y: 210, w: 680, h: 420, label: 'CAM 01 • HIGGSFIELD VIDEO STREAM', hue: 190 },
-    { x: 1060, y: 210, w: 680, h: 420, label: 'CAM 02 • SHARP COMPOSITE LAYER', hue: 315 },
+    { x: 1060, y: 210, w: 680, h: 420, label: 'CAM 02 • CANVAS OVERLAY', hue: 315 },
   ];
 
   cards.forEach((card, idx) => {
@@ -119,7 +119,7 @@ function drawMixer(t) {
   ctx.fillStyle = '#ffffff';
   ctx.font = '800 32px Inter, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('MULTI-TRACK VIDEO & 3D SHADER COMPOSITOR • 1080P 60FPS', W / 2, H - 48);
+  ctx.fillText('CANVAS 2D MULTI-TRACK MIXER • 1080P 60FPS', W / 2, H - 48);
   ctx.textAlign = 'left';
 }
 

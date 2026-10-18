@@ -260,7 +260,7 @@
   </div>
   <div class="stack-pills">
     <span class="pill">Playwright 1080p 60fps</span>
-    <span class="pill">Remotion + GSAP + Three.js</span>
+    <span class="pill">Playwright + GSAP + Canvas 2D</span>
     <span class="pill">FFmpeg x264 / x265 / AV1 / NVENC</span>
     <span class="pill">DeepSeek 5-Stage Gate</span>
     <span class="pill">Sharp + MinIO + BullMQ</span>
@@ -298,7 +298,7 @@
       </div>
       <div class="pillar-box">
         <h4>[2] COMPOSITOR</h4>
-        <p>FFmpeg Multi-Thread + Remotion React Component (useCurrentFrame)</p>
+        <p>FFmpeg Multi-Thread untuk komposisi frame sequence dan audio</p>
       </div>
       <div class="pillar-box">
         <h4>[3] ENCODER</h4>
@@ -306,7 +306,7 @@
       </div>
       <div class="pillar-box">
         <h4>[4] MOTION LAYER</h4>
-        <p>GSAP Timeline, Lottie SVG, Three.js WebGL, Deterministic renderFrame(t)</p>
+        <p>GSAP Timeline via CDN, Canvas 2D, deterministik renderFrame(t)</p>
       </div>
       <div class="pillar-box">
         <h4>[5] ASSET & SECURITY</h4>
@@ -465,7 +465,7 @@ function renderBase(t) {
   ctx.fillText('MOTION STUDIO', W / 2, H / 2 + 10);
   ctx.fillStyle = '#94a3b8';
   ctx.font = '500 36px Inter, sans-serif';
-  ctx.fillText('Playwright • GSAP • Remotion • Sharp • FFmpeg', W / 2, H / 2 + 85);
+  ctx.fillText('Playwright • GSAP • Canvas 2D • Sharp • FFmpeg', W / 2, H / 2 + 85);
 }
 
 // 3. SMOOTH SLIDESHOW
@@ -549,7 +549,7 @@ function renderMixer(t) {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = '800 36px Inter, sans-serif';
-  ctx.fillText('3D SHADER & VIDEO COMPOSITOR MIXER • 1080P 60FPS', W / 2, H - 45);
+  ctx.fillText('CANVAS 2D VIDEO MIXER • 1080P 60FPS', W / 2, H - 45);
 }
 
 window.renderFrame = function(t) {

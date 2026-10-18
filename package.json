@@ -1,7 +1,7 @@
 {
   "name": "motion-studio",
   "version": "1.0.0",
-  "description": "Production-grade Motion Graphics Pipeline: ChatGPT MCP + Higgsfield AI + DeepSeek Engineer + VPS Render Farm (Playwright, Remotion, GSAP, Three.js, Sharp, FFmpeg)",
+  "description": "Production-grade Motion Graphics Pipeline: ChatGPT MCP + Higgsfield AI + DeepSeek Engineer + VPS Render Farm (Playwright, Canvas 2D, GSAP via CDN, Sharp, FFmpeg)",
   "type": "module",
   "scripts": {
     "render": "node render.js",
@@ -20,19 +20,10 @@
     "axios": "^1.7.7",
     "bullmq": "^5.15.0",
     "express": "^4.21.0",
-    "express-rate-limit": "^7.4.0",
-    "form-data": "^4.0.0",
-    "gsap": "^3.12.5",
     "ioredis": "^5.4.1",
-    "lottie-web": "^5.12.2",
     "minio": "^8.0.1",
-    "node-cron": "^3.0.3",
-    "p-limit": "^6.1.0",
-    "pino": "^9.4.0",
     "playwright": "^1.48.0",
-    "sharp": "^0.33.5",
-    "three": "^0.169.0",
-    "zod": "^3.23.8"
+    "sharp": "^0.33.5"
   },
   "engines": {
     "node": ">=20.0.0"

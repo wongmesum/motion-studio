@@ -58,7 +58,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           width:       { type: 'number', default: 1920 },
           height:      { type: 'number', default: 1080 },
           assets:      { type: 'array', items: { type: 'string' }, description: 'Daftar URL gambar/video dari Higgsfield' },
-          audio_url:   { type: 'string', description: 'URL file audio MP3/WAV (opsional)' },
+          audio_url:   { type: 'string', description: 'URL HTTPS audio MP3/WAV/M4A/AAC dari hostname dalam RENDER_ALLOWED_HOSTS (opsional)' },
           codec:       { type: 'string', default: 'h264', description: 'Codec output: h264, h265, av1, nvenc' },
           preview:     { type: 'boolean', default: false, description: 'Jika true, render cepat 480p @ 15fps untuk preview' },
           priority:    { type: 'number', default: 5, description: 'Prioritas antrean (1 = tertinggi VIP, 10 = terendah)' },
@@ -80,7 +80,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'vps_list_templates',
-      description: 'Lihat daftar template motion graphics siap pakai di VPS (GSAP, Kinetic Glitch, Slideshow, Three.js Video Mixer).',
+      description: 'Lihat daftar template motion graphics siap pakai di VPS (GSAP, Kinetic Glitch, Slideshow, Canvas 2D Video Mixer).',
       inputSchema: {
         type: 'object',
         properties: {},
