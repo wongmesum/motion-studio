@@ -93,7 +93,7 @@ test('admin keys endpoint returns both provider configs with masked keys only', 
   assert.equal(typeof payload.aiProviders.river.maskedApiKey, 'string');
 });
 
-test('AI test endpoint requires admin token and rejects unknown providers', async () => {
+test('AI test endpoint requires admin token and rejects invalid input', async () => {
   const unauthorized = await request('/api/admin/ai/test', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -101,17 +101,34 @@ test('AI test endpoint requires admin token and rejects unknown providers', asyn
   });
   assert.equal(unauthorized.status, 401);
 
-  const unknownProvider = await request('/api/admin/ai/test', {
+  const invalidPayloads = [
+    { providerId: 'not-a-provider', prompt: 'Tell me a story.' },
+    { prompt: 'Tell me a story.', temperature: '0.5' },
+    { prompt: 'Tell me a story.', apiKey: 'must-not-override' },
+  ];
+  for (const payload of invalidPayloads) {
+    const response = await request('/api/admin/ai/test', {
+      method: 'POST',
+      headers: {
+        'X-Admin-Token': serviceKeys.adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    assert.equal(response.status, 400);
+  }
+
+  const contradictoryProvider = await request('/api/admin/river/test', {
     method: 'POST',
     headers: {
       'X-Admin-Token': serviceKeys.adminToken,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ providerId: 'not-a-provider', prompt: 'Tell me a story.' }),
+    body: JSON.stringify({ providerId: 'deepseek', prompt: 'Tell me a story.' }),
   });
-  assert.equal(unknownProvider.status, 400);
-  const body = await unknownProvider.json();
-  assert.match(body.error, /tidak didukung/);
+  assert.equal(contradictoryProvider.status, 400);
+  const body = await contradictoryProvider.json();
+  assert.match(body.error, /harus menggunakan provider river/);
 });
 
 test('output download requires auth and rejects unsafe filenames', async () => {

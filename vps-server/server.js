@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { auth, adminAuth, limiter, verifySignature } from './middleware/auth.js';
 import { validateJobLimits } from './middleware/limits.js';
 import { sanitizeHtml } from './security/sanitize.js';
+import { validateAiTestInput } from './security/ai-test-input.js';
 import { initQueue, enqueueRenderJob, getJobStatus, getQueueStats } from './queue.js';
 import {
   validate as deepseekValidate,
@@ -17,7 +18,6 @@ import {
 } from './deepseek-engineer.js';
 import {
   initConfigStore,
-  AI_PROVIDER_IDS,
   getAiConfig,
   projectPublicAiConfig,
   updateApiKeysConfig,
@@ -236,22 +236,24 @@ function redactRequestBody(requestBody = {}) {
 }
 
 async function testAiProvider(req, res, forcedProviderId) {
-  const requestedProviderId = forcedProviderId || req.body?.providerId;
-  if (requestedProviderId && !AI_PROVIDER_IDS.includes(requestedProviderId)) {
-    return res.status(400).json({ error: `Provider AI tidak didukung: ${requestedProviderId}` });
+  let input;
+  try {
+    input = validateAiTestInput(req.body || {}, forcedProviderId || null);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
   }
 
-  const config = await getAiConfig(requestedProviderId);
-  const conversationId = String(req.body?.conversationId || generateConversationId()).toLowerCase();
+  const config = await getAiConfig(input.providerId);
+  const conversationId = input.conversationId || generateConversationId();
 
   try {
     const result = await callAiChat({
       providerId: config.providerId,
-      messages: [{ role: 'user', content: String(req.body?.prompt || 'Tell me a story.').slice(0, 10000) }],
-      temperature: req.body?.temperature,
-      maxTokens: req.body?.maxTokens,
-      enableThinking: req.body?.enableThinking,
-      stream: req.body?.stream,
+      messages: [{ role: 'user', content: input.prompt }],
+      temperature: input.temperature,
+      maxTokens: input.maxTokens,
+      enableThinking: input.enableThinking,
+      stream: input.stream,
       conversationId,
     });
     await addAuditLog(

@@ -200,6 +200,7 @@ export async function callAiChat({
   apiKey,
   baseUrl,
   model,
+  transport = axios,
 } = {}) {
   const cfg = await getAiConfig(providerId);
   const resolvedProvider = providerId || cfg.providerId;
@@ -219,7 +220,7 @@ export async function callAiChat({
   });
 
   const startedAt = Date.now();
-  const res = await axios.post(request.endpoint, request.body, {
+  const res = await transport.post(request.endpoint, request.body, {
     headers: request.headers,
     responseType: request.stream ? 'text' : 'json',
     timeout: 60000,
