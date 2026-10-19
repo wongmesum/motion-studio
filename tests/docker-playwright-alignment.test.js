@@ -50,6 +50,20 @@ test('the VPS image installs from the lockfile instead of re-resolving ranges', 
   );
 });
 
+test('the VPS Docker context excludes host dependencies and runtime data', async () => {
+  const dockerignore = await readText('vps-server/.dockerignore');
+  const ignoredPaths = new Set(
+    dockerignore
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+  );
+
+  for (const requiredPath of ['node_modules/', '.env', '.env.*', 'data/', 'cache/', 'output/', 'frames/']) {
+    assert.ok(ignoredPaths.has(requiredPath), `${requiredPath} must be excluded from the VPS Docker context`);
+  }
+});
+
 test('the declared Node engine satisfies sharp requirements', async () => {
   const engines = (await readJson('package.json')).engines?.node;
   assert.ok(engines, 'the root manifest must declare a Node engine range');

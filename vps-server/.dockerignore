@@ -1,0 +1,29 @@
+# The Dockerfile runs `npm ci --omit=dev` to fetch Linux-native binaries for sharp
+# and Playwright. A copied node_modules from the build host would overwrite those
+# with Windows/macOS binaries and break sharp at runtime, so it must never be sent.
+node_modules/
+**/node_modules/
+
+# Secrets are injected at runtime via env_file; baking them into an image layer
+# would leak them to anyone who can pull or inspect the image.
+.env
+.env.*
+!.env.example
+
+# Runtime state. These are bind-mounted by docker-compose, so the copies inside the
+# image would only shadow real data and bloat the build context.
+data/
+cache/
+output/
+frames/
+
+# Editor, VCS, and log noise
+.git/
+.gitignore
+*.log
+logs/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+npm-debug.log*
