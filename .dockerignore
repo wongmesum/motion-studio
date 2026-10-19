@@ -1,0 +1,31 @@
+# Native dependencies must be installed inside the Linux image.
+node_modules/
+**/node_modules/
+
+# Runtime secrets are injected by Compose, never copied into image layers.
+.env
+.env.*
+!.env.example
+vps-server/data/
+
+# Runtime and local build output
+cache/
+output/
+frames/
+tools/
+
+# Files not required by the production image
+.git/
+.gitignore
+.github/
+tests/
+examples/
+mcp-server/
+scripts/
+*.log
+logs/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+npm-debug.log*

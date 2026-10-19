@@ -39,7 +39,7 @@ test('the VPS image installs from the lockfile instead of re-resolving ranges', 
   const dockerfile = await readText('vps-server/Dockerfile');
   assert.match(
     dockerfile,
-    /COPY\s+package\.json\s+package-lock\.json\s+\.\//,
+    /COPY\s+vps-server\/package\.json\s+vps-server\/package-lock\.json\s+\.\//,
     'the VPS Dockerfile must copy the lockfile alongside the manifest'
   );
   assert.match(dockerfile, /RUN\s+npm\s+ci\s+--omit=dev/, 'the VPS Dockerfile must install with npm ci');
@@ -50,8 +50,20 @@ test('the VPS image installs from the lockfile instead of re-resolving ranges', 
   );
 });
 
-test('the VPS Docker context excludes host dependencies and runtime data', async () => {
-  const dockerignore = await readText('vps-server/.dockerignore');
+test('the VPS image preserves the project layout required by server routes', async () => {
+  const [dockerfile, compose] = await Promise.all([
+    readText('vps-server/Dockerfile'),
+    readText('docker-compose.yml'),
+  ]);
+  assert.match(compose, /context:\s*\.\s*\n\s*dockerfile:\s*vps-server\/Dockerfile/);
+  assert.match(dockerfile, /WORKDIR\s+\/app\/vps-server[\s\S]*COPY\s+vps-server\/\s+\.\//);
+  assert.match(dockerfile, /COPY\s+admin-dashboard\.html\s+preview-studio\.html\s+\.\//);
+  assert.match(dockerfile, /COPY\s+render-engine\/\s+\.\/render-engine/);
+  assert.match(dockerfile, /CMD\s+\["node",\s*"vps-server\/server\.js"\]/);
+});
+
+test('the root Docker context excludes host dependencies, secrets, and runtime data', async () => {
+  const dockerignore = await readText('.dockerignore');
   const ignoredPaths = new Set(
     dockerignore
       .split(/\r?\n/)
@@ -59,8 +71,28 @@ test('the VPS Docker context excludes host dependencies and runtime data', async
       .filter((line) => line && !line.startsWith('#'))
   );
 
-  for (const requiredPath of ['node_modules/', '.env', '.env.*', 'data/', 'cache/', 'output/', 'frames/']) {
-    assert.ok(ignoredPaths.has(requiredPath), `${requiredPath} must be excluded from the VPS Docker context`);
+  for (const requiredPath of ['node_modules/', '**/node_modules/', '.env', '.env.*', 'vps-server/data/', 'cache/', 'output/', 'frames/', 'tools/']) {
+    assert.ok(ignoredPaths.has(requiredPath), `${requiredPath} must be excluded from the root Docker context`);
+  }
+});
+
+test('Compose exposes only the application port on loopback', async () => {
+  const compose = await readText('docker-compose.yml');
+  assert.doesNotMatch(compose, /"6379:6379"/);
+  assert.doesNotMatch(compose, /"900[01]:900[01]"/);
+  assert.doesNotMatch(compose, /image:\s+minio\/minio/, 'removed upstream MinIO image must not block deployment');
+  assert.match(compose, /"127\.0\.0\.1:\$\{PORT:-3000}:3000"/);
+});
+
+test('Compose labels bind mounts for SELinux hosts', async () => {
+  const compose = await readText('docker-compose.yml');
+  for (const containerPath of [
+    '/app/vps-server/data',
+    '/app/output',
+    '/app/cache',
+    '/app/frames',
+  ]) {
+    assert.match(compose, new RegExp(`${containerPath}:z`));
   }
 });
 
