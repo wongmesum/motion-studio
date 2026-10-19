@@ -37,14 +37,59 @@ TEMP_DIR="$(mktemp -d "${BACKUP_DIR}/.motion-studio-backup.XXXXXX")"
 archive_sources=(-C "$APP_DIR" vps-server/data output)
 
 if [[ "$BACKUP_SKIP_REDIS" != "1" ]]; then
-  command -v docker >/dev/null 2>&1 || fail "Docker tidak ditemukan untuk backup Redis"
+  # Check the binary the configured compose command actually invokes, so an operator
+  # override is validated against what will really run.
+  compose_bin="${COMPOSE_COMMAND%% *}"
+  command -v "$compose_bin" >/dev/null 2>&1 || fail "Docker tidak ditemukan untuk backup Redis"
 
-  # Force Redis to publish a consistent snapshot before reading its volume.
+  # Stop Redis outright instead of pausing it. `CLIENT PAUSE` expires on its own clock, so
+  # a snapshot slower than that window would silently run against a volume accepting
+  # writes. A stopped container cannot accept a write at all, which makes the copy
+  # consistent no matter how long it takes. Redis availability is restored before the
+  # archive is written, so the write-blocking window is bounded by the copy itself.
+  redis_stopped=0
+  restart_redis() {
+    if [[ "$redis_stopped" != "1" ]]; then
+      return 0
+    fi
+    if (
+      cd "$APP_DIR"
+      $COMPOSE_COMMAND up -d --wait redis >/dev/null
+    ); then
+      redis_stopped=0
+      return 0
+    fi
+    printf 'Backup gagal: Redis tidak dapat dijalankan kembali\n' >&2
+    # Keep the flag set: a later attempt must still try to bring Redis back.
+    return 1
+  }
+  cleanup_with_restart() {
+    local status=$?
+    local restart_status=0
+    restart_redis || restart_status=1
+    cleanup
+    # Redis left down must never look like a successful run.
+    if [[ "$status" -eq 0 && "$restart_status" -ne 0 ]]; then
+      exit 1
+    fi
+    exit "$status"
+  }
+  trap cleanup_with_restart EXIT
+
+  # Arm cleanup before stopping. A signal after Compose stops the container but before
+  # the next shell statement must still restart Redis. Starting an already-running
+  # service is safe if the stop itself fails.
+  redis_stopped=1
   (
     cd "$APP_DIR"
-    $COMPOSE_COMMAND exec -T redis redis-cli SAVE >/dev/null
-    $COMPOSE_COMMAND exec -T redis tar -C /data -czf - . >"$TEMP_DIR/redis-data.tar.gz"
+    $COMPOSE_COMMAND stop redis >/dev/null
+  ) || fail "gagal menghentikan Redis untuk snapshot"
+  (
+    cd "$APP_DIR"
+    $COMPOSE_COMMAND run --rm --no-deps -T redis tar -C /data -czf - . \
+      >"$TEMP_DIR/redis-data.tar.gz"
   ) || fail "snapshot Redis gagal"
+  restart_redis || fail "Redis tidak dapat dijalankan kembali setelah snapshot"
 
   archive_sources+=(-C "$TEMP_DIR" redis-data.tar.gz)
 fi

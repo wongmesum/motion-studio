@@ -9,22 +9,60 @@ COMPOSE_COMMAND="${COMPOSE_COMMAND:-docker compose}"
 TEMP_DIR=""
 REDIS_STOPPED=0
 REDIS_SAFE_TO_START=1
+RESTORE_STATUS=0
+PRESERVE_TEMP=0
 
 fail() {
   printf 'Restore gagal: %s\n' "$1" >&2
   exit 1
 }
 
-cleanup() {
-  if [[ "$REDIS_STOPPED" == "1" && "$REDIS_SAFE_TO_START" == "1" ]]; then
-    (
-      cd "$APP_DIR"
-      $COMPOSE_COMMAND up -d redis >/dev/null
-    ) || printf 'Restore gagal: Redis tidak dapat dijalankan kembali\n' >&2
+restart_redis() {
+  if ! (
+    cd "$APP_DIR"
+    # Compose waits for the image healthcheck (`redis-cli ping`), not merely for the
+    # container process to start. A bad restored dataset must fail this restore.
+    $COMPOSE_COMMAND up -d --wait redis >/dev/null
+  ); then
+    printf 'Restore gagal: Redis tidak dapat dijalankan kembali\n' >&2
+    return 1
   fi
-  if [[ -n "$TEMP_DIR" ]]; then
+  REDIS_STOPPED=0
+}
+
+stop_redis() {
+  REDIS_STOPPED=1
+  (
+    cd "$APP_DIR"
+    $COMPOSE_COMMAND stop redis >/dev/null
+  )
+}
+
+restore_redis_rollback() {
+  [[ -f "$TEMP_DIR/redis-live-rollback.tar.gz" ]] || return 1
+  stop_redis || return 1
+  (
+    cd "$APP_DIR"
+    $COMPOSE_COMMAND run --rm --no-deps -T redis sh -c 'rm -rf /data/* && tar -C /data -xzf -' \
+      <"$TEMP_DIR/redis-live-rollback.tar.gz"
+  ) || return 1
+  restart_redis
+}
+
+# A restart failure must reach the process exit code. Reporting success while Redis is
+# still down would let an automated caller proceed against a stack missing its queue.
+cleanup() {
+  local status=$?
+  if [[ "$REDIS_STOPPED" == "1" && "$REDIS_SAFE_TO_START" == "1" ]]; then
+    restart_redis || RESTORE_STATUS=1
+  fi
+  if [[ -n "$TEMP_DIR" && "$PRESERVE_TEMP" != "1" ]]; then
     rm -rf "$TEMP_DIR"
   fi
+  if [[ "$status" -eq 0 && "$RESTORE_STATUS" -ne 0 ]]; then
+    exit "$RESTORE_STATUS"
+  fi
+  exit "$status"
 }
 trap cleanup EXIT
 
@@ -61,18 +99,18 @@ tar -xzf "$RESTORE_ARCHIVE" -C "$RESTORE_TARGET_DIR"
 
 if [[ "$RESTORE_REDIS" == "1" ]]; then
   [[ -f "$RESTORE_TARGET_DIR/redis-data.tar.gz" ]] || fail "snapshot Redis tidak ada dalam arsip"
-  command -v docker >/dev/null 2>&1 || fail "Docker tidak ditemukan untuk restore Redis"
+  compose_bin="${COMPOSE_COMMAND%% *}"
+  command -v "$compose_bin" >/dev/null 2>&1 || fail "Docker tidak ditemukan untuk restore Redis"
 
   # Prove the snapshot is a readable tarball before touching live Redis. Deleting the
   # live volume first would turn a corrupt snapshot into total data loss, so Redis is
   # stopped only once there is something valid to put back.
   tar -tzf "$RESTORE_TARGET_DIR/redis-data.tar.gz" >/dev/null || fail "snapshot Redis rusak"
 
-  (
-    cd "$APP_DIR"
-    $COMPOSE_COMMAND stop redis
-  ) || fail "gagal menghentikan Redis"
-  REDIS_STOPPED=1
+  # Arm cleanup before stopping. A signal after Compose stops the container, or a stop
+  # that reports failure after the container is already down, must still restart Redis.
+  # Starting an already-running service is safe, so this flag errs toward restarting.
+  stop_redis || fail "gagal menghentikan Redis"
   TEMP_DIR="$(mktemp -d /tmp/motion-studio-redis-rollback.XXXXXX)"
 
   # Keep a byte-for-byte rollback snapshot after Redis has stopped writing. If the
@@ -90,16 +128,24 @@ if [[ "$RESTORE_REDIS" == "1" ]]; then
     $COMPOSE_COMMAND run --rm --no-deps -T redis sh -c 'rm -rf /data/* && tar -C /data -xzf -' \
       <"$RESTORE_TARGET_DIR/redis-data.tar.gz"
   ); then
-    (
-      cd "$APP_DIR"
-      $COMPOSE_COMMAND run --rm --no-deps -T redis sh -c 'rm -rf /data/* && tar -C /data -xzf -' \
-        <"$TEMP_DIR/redis-live-rollback.tar.gz"
-    ) || {
+    if ! restore_redis_rollback; then
       # Starting Redis here would serve a half-extracted dataset, so the trap must not.
       REDIS_SAFE_TO_START=0
-      fail "restore dan rollback Redis gagal; Redis tetap dihentikan untuk melindungi data"
-    }
+      PRESERVE_TEMP=1
+      fail "restore dan rollback Redis gagal; Redis tetap dihentikan dan snapshot rollback dipertahankan di ${TEMP_DIR}"
+    fi
     fail "restore Redis gagal; data lama sudah dipulihkan"
+  fi
+
+  # A tarball can be structurally readable yet contain an RDB/AOF Redis refuses to load.
+  # Verify the restored dataset now, while the rollback snapshot is still available.
+  if ! restart_redis; then
+    if ! restore_redis_rollback; then
+      REDIS_SAFE_TO_START=0
+      PRESERVE_TEMP=1
+      fail "Redis hasil restore tidak sehat dan rollback gagal; snapshot rollback dipertahankan di ${TEMP_DIR}"
+    fi
+    fail "Redis hasil restore tidak sehat; data lama sudah dipulihkan"
   fi
 fi
 

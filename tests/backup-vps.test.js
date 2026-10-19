@@ -275,6 +275,273 @@ test('a restore rejects a checksum that names a different archive', { skip: !can
   assert.notEqual(result.status, 0, 'a sidecar naming another file must not verify the archive');
 });
 
+test('a Redis backup stops writes until its volume snapshot finishes', { skip: !canRun }, () => {
+  const base = makeWorkspace();
+  const stubLog = path.join(base, 'compose-calls.log');
+  const stub = path.join(base, 'compose-stub.sh');
+  fs.writeFileSync(
+    stub,
+    `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$STUB_LOG"
+if [[ "$*" == *"tar -C /data -czf - ."* ]]; then
+  tar -czf - -C "$STUB_REDIS_DATA" .
+fi
+exit 0
+`
+  );
+  fs.chmodSync(stub, 0o755);
+  const redisData = path.join(base, 'redis-data');
+  fs.mkdirSync(redisData);
+  fs.writeFileSync(path.join(redisData, 'dump.rdb'), 'redis-bytes');
+
+  const result = runBackup(base, {
+    BACKUP_SKIP_REDIS: '0',
+    COMPOSE_COMMAND: toShellPath(stub),
+    STUB_LOG: toShellPath(stubLog),
+    STUB_REDIS_DATA: toShellPath(redisData),
+  });
+  assert.equal(result.status, 0, result.stderr);
+
+  const calls = fs.readFileSync(stubLog, 'utf8').trim().split(/\r?\n/);
+  const stopIndex = calls.findIndex((call) => call.includes('stop redis'));
+  const archiveIndex = calls.findIndex((call) => call.includes('tar -C /data -czf - .'));
+  const restartIndex = calls.findIndex((call) => call.includes('up -d --wait redis'));
+  assert.ok(stopIndex >= 0 && stopIndex < archiveIndex, 'Redis must stop before reading its volume');
+  assert.ok(restartIndex > archiveIndex, 'Redis must restart only after the volume snapshot finishes');
+  assert.ok(!calls.some((call) => call.includes('CLIENT PAUSE')), 'snapshot must not depend on expiring pauses');
+});
+
+test('a Redis backup fails when Redis cannot restart healthy', { skip: !canRun }, () => {
+  const base = makeWorkspace();
+  const stub = path.join(base, 'compose-stub.sh');
+  fs.writeFileSync(
+    stub,
+    `#!/usr/bin/env bash
+if [[ "$*" == *"up -d --wait redis"* ]]; then
+  exit 1
+fi
+if [[ "$*" == *"tar -C /data -czf - ."* ]]; then
+  tar -czf - -C "$STUB_REDIS_DATA" .
+fi
+exit 0
+`
+  );
+  fs.chmodSync(stub, 0o755);
+  const redisData = path.join(base, 'redis-data');
+  fs.mkdirSync(redisData);
+  fs.writeFileSync(path.join(redisData, 'dump.rdb'), 'redis-bytes');
+
+  const result = runBackup(base, {
+    BACKUP_SKIP_REDIS: '0',
+    COMPOSE_COMMAND: toShellPath(stub),
+    STUB_REDIS_DATA: toShellPath(redisData),
+  });
+
+  assert.notEqual(result.status, 0, 'backup must fail when Redis does not become healthy');
+  assert.match(result.stderr, /Redis tidak dapat dijalankan kembali/);
+});
+
+test('a restore arms Redis restart before issuing stop', { skip: !canRun }, () => {
+  const script = readText('scripts/restore-vps.sh');
+  const stopFunction = script.slice(
+    script.indexOf('stop_redis() {'),
+    script.indexOf('restore_redis_rollback() {')
+  );
+  const armed = stopFunction.indexOf('REDIS_STOPPED=1');
+  const stopped = stopFunction.indexOf('$COMPOSE_COMMAND stop redis');
+
+  assert.ok(armed >= 0, 'restore must track that Redis may be stopped');
+  assert.ok(stopped > armed, 'restart cleanup must be armed before Compose can stop Redis');
+  // The rollback path stops Redis too, so arming inside the helper covers every caller.
+  assert.match(script, /stop_redis \|\| fail "gagal menghentikan Redis"/);
+});
+
+test('a restore returns failure when Redis cannot restart', { skip: !canRun }, () => {
+  const script = readText('scripts/restore-vps.sh');
+  assert.match(
+    script,
+    /restart_redis[\s\S]*return 1[\s\S]*RESTORE_STATUS=1/,
+    'restart failure must affect the process exit code instead of only logging'
+  );
+});
+
+test('a restore that cannot restart Redis exits nonzero even after a good restore', { skip: !canRun }, () => {
+  const base = makeWorkspace();
+  const appDir = path.join(base, 'app');
+
+  // A valid inner Redis snapshot, so the restore itself succeeds and only the final
+  // restart fails. That is the case a trap can silently swallow.
+  const redisPayload = path.join(base, 'redis-payload');
+  fs.mkdirSync(redisPayload);
+  fs.writeFileSync(path.join(redisPayload, 'dump.rdb'), 'redis-bytes');
+  const inner = runShell(
+    `tar -czf '${toShellPath(path.join(base, 'redis-data.tar.gz'))}' -C '${toShellPath(redisPayload)}' .`
+  );
+  assert.equal(inner.status, 0, inner.stderr);
+
+  const fixtureArchive = toShellPath(
+    path.join(base, 'backups', 'motion-studio-20200101T000000Z.tar.gz')
+  );
+  const fixture = runShell(
+    `tar -czf '${fixtureArchive}' ` +
+      `-C '${toShellPath(appDir)}' vps-server/data output ` +
+      `-C '${toShellPath(base)}' redis-data.tar.gz`
+  );
+  assert.equal(fixture.status, 0, fixture.stderr);
+  runShell(
+    `cd '${toShellPath(path.join(base, 'backups'))}' && sha256sum motion-studio-20200101T000000Z.tar.gz > motion-studio-20200101T000000Z.tar.gz.sha256`
+  );
+
+  const stubLog = path.join(base, 'compose-calls.log');
+  const stub = path.join(base, 'compose-stub.sh');
+  fs.writeFileSync(
+    stub,
+    `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$STUB_LOG"
+if [[ "$*" == *"up -d --wait redis"* ]]; then
+  exit 1
+fi
+if [[ "$*" == *"tar -C /data -czf - ."* ]]; then
+  tar -czf - -C "$STUB_REDIS_DATA" .
+fi
+exit 0
+`
+  );
+  fs.chmodSync(stub, 0o755);
+
+  const result = runRestore(base, {
+    RESTORE_ARCHIVE: toShellPath(path.join(base, 'backups', 'motion-studio-20200101T000000Z.tar.gz')),
+    RESTORE_REDIS: '1',
+    APP_DIR: toShellPath(appDir),
+    COMPOSE_COMMAND: toShellPath(stub),
+    STUB_LOG: toShellPath(stubLog),
+    STUB_REDIS_DATA: toShellPath(redisPayload),
+  });
+
+  assert.notEqual(
+    result.status,
+    0,
+    `a restart failure must not be reported as a successful restore\n${result.stdout}\n${result.stderr}`
+  );
+  assert.ok(fs.existsSync(stubLog), `compose stub should have run\n${result.stdout}\n${result.stderr}`);
+  const calls = fs.readFileSync(stubLog, 'utf8');
+  assert.match(calls, /up -d --wait redis/, 'the trap must attempt to bring Redis back up');
+  assert.match(calls, /Restore|up -d --wait redis/, 'restart must be attempted before exiting');
+  assert.match(result.stderr, /Redis tidak dapat dijalankan kembali/);
+});
+
+// Builds an archive whose inner Redis snapshot is a valid tarball, so extraction succeeds
+// and only the health check can fail. Returns the archive path.
+function makeHealthyExtractFixture(base, appDir) {
+  const redisPayload = path.join(base, 'redis-payload');
+  fs.mkdirSync(redisPayload);
+  fs.writeFileSync(path.join(redisPayload, 'dump.rdb'), 'redis-bytes');
+  const inner = runShell(
+    `tar -czf '${toShellPath(path.join(base, 'redis-data.tar.gz'))}' -C '${toShellPath(redisPayload)}' .`
+  );
+  assert.equal(inner.status, 0, inner.stderr);
+
+  const archivePath = path.join(base, 'backups', 'motion-studio-20200101T000000Z.tar.gz');
+  const fixture = runShell(
+    `tar -czf '${toShellPath(archivePath)}' ` +
+      `-C '${toShellPath(appDir)}' vps-server/data output ` +
+      `-C '${toShellPath(base)}' redis-data.tar.gz`
+  );
+  assert.equal(fixture.status, 0, fixture.stderr);
+  runShell(
+    `cd '${toShellPath(path.join(base, 'backups'))}' && sha256sum motion-studio-20200101T000000Z.tar.gz > motion-studio-20200101T000000Z.tar.gz.sha256`
+  );
+  return archivePath;
+}
+
+test('a restore rolls back when the restored dataset cannot become healthy', { skip: !canRun }, () => {
+  const base = makeWorkspace();
+  const appDir = path.join(base, 'app');
+  const archivePath = makeHealthyExtractFixture(base, appDir);
+
+  const stubLog = path.join(base, 'compose-calls.log');
+  const attemptFile = path.join(base, 'health-attempts');
+  const stub = path.join(base, 'compose-stub.sh');
+  // The restored dataset starts unhealthy; the rollback dataset starts clean. A valid
+  // tarball can still hold an RDB that Redis refuses to load.
+  fs.writeFileSync(
+    stub,
+    `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$STUB_LOG"
+if [[ "$*" == *"up -d --wait redis"* ]]; then
+  attempt=$(( $(cat "$ATTEMPT_FILE" 2>/dev/null || echo 0) + 1 ))
+  printf '%s' "$attempt" > "$ATTEMPT_FILE"
+  [[ "$attempt" -gt 1 ]] || exit 1
+fi
+if [[ "$*" == *"tar -C /data -czf - ."* ]]; then
+  tar -czf - -C "$STUB_REDIS_DATA" .
+fi
+exit 0
+`
+  );
+  fs.chmodSync(stub, 0o755);
+
+  const result = runRestore(base, {
+    RESTORE_ARCHIVE: toShellPath(archivePath),
+    RESTORE_REDIS: '1',
+    APP_DIR: toShellPath(appDir),
+    COMPOSE_COMMAND: toShellPath(stub),
+    STUB_LOG: toShellPath(stubLog),
+    STUB_REDIS_DATA: toShellPath(path.join(base, 'redis-payload')),
+    ATTEMPT_FILE: toShellPath(attemptFile),
+  });
+
+  assert.notEqual(result.status, 0, 'an unhealthy restored dataset must fail the restore');
+  assert.match(result.stderr, /data lama sudah dipulihkan/, 'the previous dataset must be put back');
+
+  const calls = fs.readFileSync(stubLog, 'utf8');
+  const rollbacks = calls.split(/\r?\n/).filter((call) => call.includes('rm -rf /data/*')).length;
+  assert.ok(rollbacks >= 2, 'rollback must re-extract the pre-restore snapshot');
+  assert.match(calls, /up -d --wait redis/, 'Redis must be restarted after rollback');
+});
+
+test('a restore keeps the rollback snapshot when recovery itself fails', { skip: !canRun }, () => {
+  const base = makeWorkspace();
+  const appDir = path.join(base, 'app');
+  const archivePath = makeHealthyExtractFixture(base, appDir);
+
+  const stub = path.join(base, 'compose-stub.sh');
+  // Redis never becomes healthy again, so recovery is impossible and the snapshot must
+  // survive for an operator instead of being deleted by cleanup.
+  fs.writeFileSync(
+    stub,
+    `#!/usr/bin/env bash
+if [[ "$*" == *"up -d --wait redis"* ]]; then
+  exit 1
+fi
+if [[ "$*" == *"tar -C /data -czf - ."* ]]; then
+  tar -czf - -C "$STUB_REDIS_DATA" .
+fi
+exit 0
+`
+  );
+  fs.chmodSync(stub, 0o755);
+
+  const result = runRestore(base, {
+    RESTORE_ARCHIVE: toShellPath(archivePath),
+    RESTORE_REDIS: '1',
+    APP_DIR: toShellPath(appDir),
+    COMPOSE_COMMAND: toShellPath(stub),
+    STUB_REDIS_DATA: toShellPath(path.join(base, 'redis-payload')),
+  });
+
+  assert.notEqual(result.status, 0, 'unrecoverable Redis must fail the restore');
+  const match = result.stderr.match(/snapshot rollback dipertahankan di (\S+)/);
+  assert.ok(match, `a failed recovery must point at the kept snapshot\n${result.stderr}`);
+  const rollbackSnapshot = `${match[1]}/redis-live-rollback.tar.gz`;
+  const snapshotCheck = runShell(`test -f '${rollbackSnapshot}'`);
+  assert.equal(
+    snapshotCheck.status,
+    0,
+    'the pre-restore snapshot must not be deleted when rollback fails'
+  );
+});
+
 test('a restore never stops Redis when the Redis snapshot is unusable', { skip: !canRun }, () => {
   const base = makeWorkspace();
   const appDir = path.join(base, 'app');
