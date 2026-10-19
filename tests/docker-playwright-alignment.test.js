@@ -76,8 +76,13 @@ test('the root Docker context excludes host dependencies, secrets, and runtime d
   }
 });
 
-test('Compose exposes only the application port on loopback', async () => {
+test('Compose pins Redis and exposes only the application port on loopback', async () => {
   const compose = await readText('docker-compose.yml');
+  assert.match(
+    compose,
+    /image:\s+redis:7-alpine@sha256:[a-f0-9]{64}/,
+    'production Redis must be immutable instead of following a moving tag'
+  );
   assert.doesNotMatch(compose, /"6379:6379"/);
   assert.doesNotMatch(compose, /"900[01]:900[01]"/);
   assert.doesNotMatch(compose, /image:\s+minio\/minio/, 'removed upstream MinIO image must not block deployment');

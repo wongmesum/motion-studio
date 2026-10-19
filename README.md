@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # 🎬 Motion Studio — ChatGPT MCP + Higgsfield AI + DeepSeek Engineer + VPS Render Farm
 
 Project produksi untuk membuat **Motion Graphics 1080p @ 60fps** secara deterministik menggunakan **JavaScript, Playwright + Chromium Headless, Canvas 2D, GSAP via CDN, Sharp, dan FFmpeg**, diorkestrasi dari **ChatGPT (via MCP)** dengan **Higgsfield AI** sebagai generator asset dan **DeepSeek Render Engineer** sebagai 5-Stage Automated Quality Gate di dalam VPS.
@@ -6,7 +8,7 @@ Project produksi untuk membuat **Motion Graphics 1080p @ 60fps** secara determin
 
 ## 🗺️ Peta Arsitektur & 5 Pilar Stack
 
-```
+```text
 ┌──────────────┐
 │  USER        │  "Bikin video promo 10 detik, background kota futuristik,
 └──────┬───────┘   teks 'AI 2025' muncul dengan efek glitch"
@@ -31,7 +33,8 @@ Project produksi untuk membuat **Motion Graphics 1080p @ 60fps** secara determin
                          1080p @ 60fps MP4
 ```
 
-### Peta Stack 5 Pilar yang Diimplementasikan:
+### Peta Stack 5 Pilar yang Diimplementasikan
+
 1. **[1] Render Engine**: Playwright + Chromium Headless (`--use-gl=swiftshader`, Parallel Chunked Workers).
 2. **[2] Compositor**: FFmpeg (frame sequence JPEG/PNG → MP4, multi-codec, audio AAC opsional).
 3. **[3] Encoder**: Multi-codec `libx264` (H.264), `libx265` (HEVC), `libsvtav1` (AV1), dan `h264_nvenc` (GPU).
@@ -42,7 +45,7 @@ Project produksi untuk membuat **Motion Graphics 1080p @ 60fps** secara determin
 
 ## 📂 Struktur Project
 
-```
+```text
 motion-studio/
 ├── README.md
 ├── package.json
@@ -94,7 +97,10 @@ motion-studio/
 │   ├── install-vps.sh              # Auto-installer Ubuntu 22.04/24.04
 │   ├── build-ffmpeg.sh             # Installer FFmpeg Static Build (BtbN GPL)
 │   ├── verify-stack.sh             # Verifikasi 5 Pilar Stack
-│   └── health-check.sh             # Monitoring & Auto-restart container
+│   ├── health-check.sh             # Monitoring & Auto-restart container
+│   ├── backup-vps.sh               # Backup data, output, dan snapshot Redis
+│   ├── restore-vps.sh              # Verifikasi checksum dan staging restore
+│   └── enable-ssh-post-quantum.sh  # Uji lalu aktifkan hybrid PQ SSH KEX
 │
 └── examples/
     ├── demo-job.json               # Contoh payload JSON untuk POST /render
@@ -106,7 +112,9 @@ motion-studio/
 ## 🚀 Cara Menjalankan
 
 ### 1. Mode Cepat (Standalone CLI tanpa Server/Docker)
+
 Langsung merender template HTML menjadi video `MP4` 1080p @ 60fps:
+
 ```bash
 npm install
 npx playwright install chromium
@@ -134,6 +142,7 @@ node render.js --template render-engine/templates/kinetic-text.html --audio asse
 ```
 
 ### 2. Mode Server VPS Lengkap (Docker Compose)
+
 ```bash
 cp .env.example .env
 # Edit .env dan masukkan API Key Higgsfield + API key provider AI yang dipakai.
@@ -143,6 +152,7 @@ docker compose up -d --build
 ```
 
 ### 3. Uji Kirim Job Render via API
+
 ```bash
 curl -X POST http://localhost:3000/render \
   -H "X-Token: $VPS_TOKEN" \
@@ -153,12 +163,49 @@ curl -X POST http://localhost:3000/render \
 ```
 
 ### 4. Cek Status & Hasil Video
+
 ```bash
 curl http://localhost:3000/jobs/JOB_ID \
   -H "X-Token: $VPS_TOKEN"
 ```
+
 Hasil video tersimpan di `./output/JOB_ID.mp4` atau melalui Signed URL MinIO S3.
 Unduhan lokal lewat `GET /output/JOB_ID.mp4` juga wajib menyertakan `X-Token`.
+
+### 5. Operasi Produksi
+
+Backup mencakup `vps-server/data`, `output`, dan snapshot konsisten volume Redis.
+Redis dihentikan singkat selama volume disalin lalu dijalankan kembali dengan verifikasi
+healthcheck. `cache` serta `frames` tidak disimpan karena dapat dibuat ulang. Arsip dan
+checksum SHA-256 ditulis dengan mode `0600`; retensi default 14 hari.
+
+```bash
+sudo install -m 700 scripts/backup-vps.sh /usr/local/sbin/motion-studio-backup
+sudo install -m 700 scripts/restore-vps.sh /usr/local/sbin/motion-studio-restore
+sudo install -m 644 deploy/systemd/motion-studio-backup.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now motion-studio-backup.timer
+```
+
+Uji restore selalu ke direktori staging kosong terlebih dahulu:
+
+```bash
+sudo env \
+  RESTORE_ARCHIVE=/var/backups/motion-studio/motion-studio-TIMESTAMP.tar.gz \
+  RESTORE_TARGET_DIR=/tmp/motion-studio-restore-test \
+  /usr/local/sbin/motion-studio-restore
+```
+
+Restore tidak menimpa direktori yang sudah ada. `RESTORE_REDIS=1` sengaja terpisah
+karena opsi itu menghentikan Redis dan mengganti isi volumenya.
+
+Amazon Linux 2023 dapat menghapus hybrid post-quantum KEX dari OpenSSH lewat crypto
+policy walaupun binary mendukungnya. Script berikut menguji `mlkem768x25519-sha256`
+di sshd port sementara sebelum me-reload daemon utama:
+
+```bash
+sudo scripts/enable-ssh-post-quantum.sh
+```
 
 ---
 
@@ -170,7 +217,7 @@ fallback otomatis** antar-provider: provider aktif dipilih eksplisit, dan kegaga
 satu provider tidak pernah diam-diam dialihkan ke provider lain.
 
 | Provider ID | Nama | API Base URL | Model Default | Autentikasi |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `river` | River AI gateway | `https://api.river.ai` | `deepseek-ai/DeepSeek-V4.1-Flash` | `Authorization: Bearer` + header `X-River-Conversation-Id` |
 | `deepseek` | DeepSeek Official | `https://api.deepseek.com` | `deepseek-chat` | `Authorization: Bearer` saja |
 
