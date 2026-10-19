@@ -81,6 +81,10 @@ app.use(express.json({ limit: '10mb' }));
 // ============================================================
 // STATIC UI ROUTES (Admin Dashboard & Preview Studio)
 // ============================================================
+app.get('/', (_req, res) => {
+  res.redirect('/studio');
+});
+
 app.get('/admin', async (_req, res) => {
   const adminHtmlPath = path.resolve(__dirname, '../admin-dashboard.html');
   res.sendFile(adminHtmlPath);

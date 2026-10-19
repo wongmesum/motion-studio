@@ -36,6 +36,13 @@ function request(pathname, options = {}) {
   return fetch(`${baseUrl}${pathname}`, options);
 }
 
+test('root redirects browsers to the public studio', async () => {
+  const response = await request('/', { redirect: 'manual' });
+
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get('location'), '/studio');
+});
+
 test('liveness stays independent from Redis readiness', async () => {
   const response = await request('/live');
   assert.equal(response.status, 200);
