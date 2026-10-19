@@ -36,6 +36,12 @@ function request(pathname, options = {}) {
   return fetch(`${baseUrl}${pathname}`, options);
 }
 
+test('liveness stays independent from Redis readiness', async () => {
+  const response = await request('/live');
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: 'alive' });
+});
+
 test('admin API rejects missing token and returns only masked secrets', async () => {
   const unauthorized = await request('/api/admin/keys');
   assert.equal(unauthorized.status, 401);

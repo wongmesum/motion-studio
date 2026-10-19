@@ -7,7 +7,14 @@ import { auth, adminAuth, limiter, verifySignature } from './middleware/auth.js'
 import { validateJobLimits } from './middleware/limits.js';
 import { sanitizeHtml } from './security/sanitize.js';
 import { validateAiTestInput } from './security/ai-test-input.js';
-import { initQueue, enqueueRenderJob, getJobStatus, getQueueStats } from './queue.js';
+import {
+  initQueue,
+  enqueueRenderJob,
+  getJobStatus,
+  getQueueStats,
+  isQueueHealthy,
+  QueueUnavailableError,
+} from './queue.js';
 import {
   validate as deepseekValidate,
   optimize as deepseekOptimize,
@@ -87,11 +94,18 @@ app.get('/studio', async (_req, res) => {
 // ============================================================
 // PUBLIC HEALTH & METRICS ENDPOINTS
 // ============================================================
+// Liveness proves the HTTP process can answer. Readiness below also checks Redis and may
+// return 503; restart automation must use liveness so a dependency outage does not create
+// a container restart loop that drops in-memory fallback jobs.
+app.get('/live', (_req, res) => {
+  res.json({ status: 'alive' });
+});
+
 app.get('/health', async (_req, res) => {
   const stats = await getQueueStats();
   const aiConfig = await getAiConfig();
   const cpuLoad = os.loadavg()[0] || 0;
-  const healthy = stats.waiting < 100;
+  const healthy = isQueueHealthy(stats);
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'healthy' : 'degraded',
     cpuLoad,
@@ -402,38 +416,66 @@ app.get('/templates', async (_req, res) => {
 });
 
 // Submit Job Render Motion Graphics
-app.post('/render', verifySignature, async (req, res) => {
-  try {
-    const payload = { ...req.body };
+export function createRenderHandler(addRenderJob = enqueueRenderJob) {
+  return async (req, res) => {
+    try {
+      const payload = { ...req.body };
 
-    if (!payload.html && payload.template) {
-      const tplFile = path.resolve(
-        __dirname,
-        '../render-engine/templates',
-        `${path.basename(payload.template, '.html')}.html`
-      );
-      payload.html = await fs.readFile(tplFile, 'utf8');
+      if (!payload.html && payload.template) {
+        const tplFile = path.resolve(
+          __dirname,
+          '../render-engine/templates',
+          `${path.basename(payload.template, '.html')}.html`
+        );
+        payload.html = await fs.readFile(tplFile, 'utf8');
+      }
+
+      validateJobLimits(payload);
+      payload.html = sanitizeHtml(payload.html);
+      payload.submittedBy = req.authUser?.email || req.authUser?.name || 'api_client';
+
+      const queued = await addRenderJob(payload);
+      res.status(202).json(queued);
+    } catch (error) {
+      // A dependency outage must not be reported as a malformed request: callers retry on
+      // 5xx and give up on 4xx, and the payload was valid.
+      if (error instanceof QueueUnavailableError) {
+        logger.warn('Render submission rejected: queue unavailable', { error: error.message });
+        return res.status(503).json({ error: 'Layanan antrean sedang tidak tersedia' });
+      }
+      res.status(400).json({ error: error.message });
     }
+  };
+}
 
-    validateJobLimits(payload);
-    payload.html = sanitizeHtml(payload.html);
-    payload.submittedBy = req.authUser?.email || req.authUser?.name || 'api_client';
-
-    const queued = await enqueueRenderJob(payload);
-    res.status(202).json(queued);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
+app.post('/render', verifySignature, createRenderHandler());
 
 // Cek Status Job Render
-app.get('/jobs/:id', async (req, res) => {
-  const job = await getJobStatus(req.params.id);
-  if (!job) {
-    return res.status(404).json({ error: 'Job not found' });
-  }
-  res.json(job);
-});
+//
+// Exported as a factory so the outage path can be driven by a rejecting lookup. The
+// queue connection now fails fast, so a Redis restart makes `getJobStatus` reject.
+// Express does not catch a rejected async handler, and there is no process-level
+// rejection handler, so an unguarded await here would end the process instead of
+// answering with a retryable status.
+export function createJobStatusHandler(fetchJobStatus = getJobStatus) {
+  return async (req, res) => {
+    try {
+      const job = await fetchJobStatus(req.params.id);
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+      res.json(job);
+    } catch (error) {
+      logger.warn('Job status unavailable', {
+        jobId: req.params.id,
+        error: error.message,
+      });
+      return res.status(503).json({ error: 'Layanan antrean sedang tidak tersedia' });
+    }
+  };
+}
+
+app.get('/jobs/:id', createJobStatusHandler());
 
 // Statistik Queue
 app.get('/jobs', async (_req, res) => {
