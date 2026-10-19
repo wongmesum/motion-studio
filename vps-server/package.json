@@ -13,8 +13,9 @@
     "bullmq": "^5.15.0",
     "express": "^4.21.0",
     "ioredis": "^5.4.1",
-    "minio": "^8.0.1",
-    "playwright": "^1.48.0",
-    "sharp": "^0.33.5"
+    "playwright": "1.64.1",
+    "sharp": "^0.35.5",
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0"
   }
 }

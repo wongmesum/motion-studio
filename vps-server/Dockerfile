@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.48.0-jammy
+FROM mcr.microsoft.com/playwright:v1.64.1-jammy
 
 WORKDIR /app
 
@@ -17,8 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LIBGL_ALWAYS_SOFTWARE=1
 ENV GALLIUM_DRIVER=llvmpipe
 
-COPY package.json ./
-RUN npm install --omit=dev
+# Copy the lockfile too: `npm install` would re-resolve Playwright and could drift
+# away from the pinned image tag, which breaks browser executable discovery.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 COPY . .
 

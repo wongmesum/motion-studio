@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getAssetCachePath, ensureCacheDirs } from './cache.js';
 import { logger } from './logger.js';
+import { createDefaultObjectStorageClient } from './object-storage-client.js';
 import { isAllowedRemoteAssetUrl } from './security/network-policy.js';
 import {
   assertAllowedAudioUrl,
@@ -29,14 +30,7 @@ async function getMinioClient() {
   if (process.env.MINIO_ENABLED !== 'true') return null;
   if (minioClient) return minioClient;
   try {
-    const Minio = await import('minio');
-    minioClient = new Minio.Client({
-      endPoint: process.env.MINIO_ENDPOINT || 'minio',
-      port: Number(process.env.MINIO_PORT || 9000),
-      useSSL: process.env.MINIO_USE_SSL === 'true',
-      accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-      secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
-    });
+    minioClient = createDefaultObjectStorageClient();
     return minioClient;
   } catch (e) {
     logger.warn('MinIO client unavailable, falling back to local output folder', { error: e.message });
