@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Motion Studio backup daily
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=30m
+Persistent=true
+Unit=motion-studio-backup.service
+
+[Install]
+WantedBy=timers.target

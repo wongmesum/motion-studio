@@ -1,0 +1,15 @@
+[Unit]
+Description=Motion Studio backup of persisted render state
+Documentation=https://app.bangalimin.com
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=APP_DIR=/var/www/app.bangalimin.com
+Environment=BACKUP_DIR=/var/backups/motion-studio
+Environment=RETENTION_DAYS=14
+ExecStart=/usr/local/sbin/motion-studio-backup
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle
