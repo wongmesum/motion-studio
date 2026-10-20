@@ -3,7 +3,9 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { auth, adminAuth, limiter, verifySignature } from './middleware/auth.js';
+import { auth, adminAuth, limiter, requireAdminCsrf, verifySignature } from './middleware/auth.js';
+import { createSessionRouter } from './session-routes.js';
+import { createStudioRouter } from './studio-routes.js';
 import { validateJobLimits } from './middleware/limits.js';
 import { sanitizeHtml } from './security/sanitize.js';
 import { validateAiTestInput } from './security/ai-test-input.js';
@@ -48,6 +50,9 @@ import { logger, formatPrometheusMetrics } from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const app = express();
+// Production has exactly one local Nginx hop. This makes req.ip represent the remote
+// client for login rate limiting without trusting arbitrary forwarded headers directly.
+app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT || 3000);
 
 const configuredCorsOrigins = new Set(
@@ -77,6 +82,8 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '10mb' }));
+app.use('/api/session', createSessionRouter());
+app.use('/api/studio', createStudioRouter());
 
 // ============================================================
 // STATIC UI ROUTES (Admin Dashboard & Preview Studio)
@@ -199,7 +206,7 @@ app.get('/api/admin/keys', adminAuth, async (_req, res) => {
   });
 });
 
-app.put('/api/admin/keys', adminAuth, async (req, res) => {
+app.put('/api/admin/keys', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const updated = await updateApiKeysConfig(req.body, req.adminActor);
     res.json({
@@ -217,7 +224,7 @@ app.put('/api/admin/keys', adminAuth, async (req, res) => {
 });
 
 // Manajemen AI Key Vault (Tambah, Aktifkan, Hapus Key per provider)
-app.post('/api/admin/keys/vault', adminAuth, async (req, res) => {
+app.post('/api/admin/keys/vault', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const added = await addKeyToVault(req.body, req.adminActor);
     res.status(201).json({ ok: true, key: projectPublicKey(added) });
@@ -226,7 +233,7 @@ app.post('/api/admin/keys/vault', adminAuth, async (req, res) => {
   }
 });
 
-app.post('/api/admin/keys/vault/:id/activate', adminAuth, async (req, res) => {
+app.post('/api/admin/keys/vault/:id/activate', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const activated = await activateVaultKey(req.params.id, req.adminActor);
     res.json({ ok: true, key: projectPublicKey(activated) });
@@ -235,7 +242,7 @@ app.post('/api/admin/keys/vault/:id/activate', adminAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/admin/keys/vault/:id', adminAuth, async (req, res) => {
+app.delete('/api/admin/keys/vault/:id', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const removed = await deleteVaultKey(req.params.id, req.adminActor);
     res.json({ ok: true, removed: projectPublicKey(removed) });
@@ -303,7 +310,7 @@ async function testAiProvider(req, res, forcedProviderId) {
   }
 }
 
-app.post('/api/admin/ai/test', adminAuth, async (req, res) => {
+app.post('/api/admin/ai/test', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     return await testAiProvider(req, res);
   } catch (error) {
@@ -313,7 +320,7 @@ app.post('/api/admin/ai/test', adminAuth, async (req, res) => {
 });
 
 // Compatibility route for existing River dashboard clients.
-app.post('/api/admin/river/test', adminAuth, async (req, res) => {
+app.post('/api/admin/river/test', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     return await testAiProvider(req, res, 'river');
   } catch (error) {
@@ -328,7 +335,7 @@ app.get('/api/admin/users', adminAuth, async (_req, res) => {
   res.json({ users: users.map(projectPublicUser) });
 });
 
-app.post('/api/admin/users', adminAuth, async (req, res) => {
+app.post('/api/admin/users', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const user = await createUser(req.body, req.adminActor);
     res.status(201).json({
@@ -341,7 +348,7 @@ app.post('/api/admin/users', adminAuth, async (req, res) => {
   }
 });
 
-app.put('/api/admin/users/:id', adminAuth, async (req, res) => {
+app.put('/api/admin/users/:id', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const user = await updateUser(req.params.id, req.body, req.adminActor);
     res.json({ ok: true, user: projectPublicUser(user) });
@@ -350,7 +357,7 @@ app.put('/api/admin/users/:id', adminAuth, async (req, res) => {
   }
 });
 
-app.post('/api/admin/users/:id/regenerate-token', adminAuth, async (req, res) => {
+app.post('/api/admin/users/:id/regenerate-token', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const user = await regenerateUserToken(req.params.id, req.adminActor);
     res.json({ ok: true, user: projectPublicUser(user), oneTimeApiToken: user.apiToken });
@@ -359,7 +366,7 @@ app.post('/api/admin/users/:id/regenerate-token', adminAuth, async (req, res) =>
   }
 });
 
-app.delete('/api/admin/users/:id', adminAuth, async (req, res) => {
+app.delete('/api/admin/users/:id', adminAuth, requireAdminCsrf, async (req, res) => {
   try {
     const removed = await deleteUser(req.params.id, req.adminActor);
     res.json({ ok: true, removed: projectPublicUser(removed) });

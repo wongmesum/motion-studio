@@ -249,6 +249,31 @@
     overflow-y: auto;
     line-height: 1.5;
   }
+  .render-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-field { display: flex; flex-direction: column; gap: 5px; }
+  .form-field.full { grid-column: 1 / -1; }
+  .form-field label { font-size: 11px; color: var(--muted); font-weight: 700; }
+  .form-field input, .form-field select {
+    width: 100%; padding: 9px 10px; border-radius: 7px; color: var(--text);
+    background: #080c18; border: 1px solid var(--panel-border);
+  }
+  .hint { color: var(--muted); font-size: 10px; line-height: 1.4; }
+  .progress-track { height: 9px; background: #05070e; border-radius: 999px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--purple)); transition: width .2s; }
+  .render-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .render-result { display: none; flex-direction: column; gap: 10px; }
+  .render-result.visible { display: flex; }
+  .render-result video { width: 100%; border-radius: 8px; background: #000; }
+  .header-session { display: flex; gap: 8px; align-items: center; }
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 1000; display: none; place-items: center;
+    background: rgba(3, 5, 12, .88); backdrop-filter: blur(12px); padding: 20px;
+  }
+  .login-overlay.visible { display: grid; }
+  .login-card { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--panel-border); border-radius: 16px; padding: 24px; display: grid; gap: 14px; }
+  .login-card p, .login-error { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .login-error { color: #fb7185; min-height: 20px; }
+  @media (max-width: 520px) { .render-form { grid-template-columns: 1fr; } .form-field.full { grid-column: auto; } }
 </style>
 </head>
 <body>
@@ -265,7 +290,24 @@
     <span class="pill">DeepSeek 5-Stage Gate</span>
     <span class="pill">Sharp + MinIO + BullMQ</span>
   </div>
+  <div class="header-session">
+    <span class="pill" id="sessionState">Belum login</span>
+    <button class="btn secondary" id="logoutBtn" hidden>Logout</button>
+  </div>
 </header>
+
+<div class="login-overlay" id="loginOverlay">
+  <form class="login-card" id="loginForm">
+    <h2 style="font-size:16px;">Login Admin Studio</h2>
+    <p>Masukkan password admin. Satu session berlaku untuk Studio dan Admin Dashboard selama 8 jam.</p>
+    <div class="form-field">
+      <label for="adminPassword">Password admin</label>
+      <input type="password" id="adminPassword" autocomplete="current-password" required>
+    </div>
+    <button class="btn" type="submit" id="loginSubmitBtn">Masuk</button>
+    <div class="login-error" id="loginError" role="status" aria-live="polite"></div>
+  </form>
+</div>
 
 <main>
   <section class="studio-left">
@@ -317,9 +359,52 @@
 
   <aside class="studio-right">
     <div class="side-card">
+      <h3><span>Render Video</span><span class="pill" id="renderStatus">Siap</span></h3>
+      <form class="render-form" id="renderForm">
+        <div class="form-field full">
+          <label for="renderTemplate">Template</label>
+          <select id="renderTemplate" required></select>
+        </div>
+        <div class="form-field">
+          <label for="renderDuration">Durasi (detik)</label>
+          <input type="number" id="renderDuration" min="1" max="60" value="10" required>
+        </div>
+        <div class="form-field">
+          <label for="renderFps">FPS</label>
+          <select id="renderFps"><option>15</option><option>24</option><option>30</option><option selected>60</option></select>
+        </div>
+        <div class="form-field">
+          <label for="renderResolution">Resolusi</label>
+          <select id="renderResolution">
+            <option value="854x480">854×480</option><option value="1280x720">1280×720</option>
+            <option value="1920x1080" selected>1920×1080</option><option value="3840x2160">3840×2160</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="renderCodec">Codec</label>
+          <select id="renderCodec">
+            <option value="h264" selected>H.264</option><option value="h265">H.265</option>
+            <option value="av1">AV1</option><option value="nvenc">NVENC (butuh GPU)</option>
+          </select>
+        </div>
+        <div class="form-field full">
+          <label for="renderAudioUrl">Audio URL (opsional)</label>
+          <input type="url" id="renderAudioUrl" placeholder="https://cdn.jsdelivr.net/audio/example.mp3">
+          <span class="hint">HTTPS, host dalam RENDER_ALLOWED_HOSTS, format MP3/WAV/M4A/AAC.</span>
+        </div>
+        <button class="btn form-field full" id="renderSubmitBtn" type="submit">Render Video</button>
+      </form>
+      <div class="progress-track" aria-label="Progress render"><div class="progress-fill" id="renderProgress"></div></div>
+      <div class="render-meta"><span id="renderJobId">Belum ada job</span><span id="renderProgressText">0%</span></div>
+      <div class="render-result" id="renderResult">
+        <video id="renderVideo" controls preload="metadata"></video>
+        <a class="btn" id="downloadVideo" href="#">Unduh MP4</a>
+      </div>
+    </div>
+
+    <div class="side-card">
       <h3>
         <span>🔧 DeepSeek 5-Stage Render Gate</span>
-        <button class="btn" id="simPipelineBtn" style="padding:5px 12px;font-size:12px;">▶ Simulasi Pipeline</button>
       </h3>
       <div class="stage-list" id="stageList">
         <div class="stage-item done" data-stage="0"><span>1. MCP Higgsfield Asset Gen</span><span>✅ Ready</span></div>
@@ -578,14 +663,287 @@ function tick(now) {
 }
 requestAnimationFrame(tick);
 
+// ============================================================
+// ADMIN SESSION (password login, cookie-backed, CSRF in memory only)
+// ============================================================
+const loginOverlay = document.getElementById('loginOverlay');
+const loginForm = document.getElementById('loginForm');
+const loginError = document.getElementById('loginError');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const sessionState = document.getElementById('sessionState');
+
+// Held in memory for the lifetime of the page. Never persisted to web storage.
+let csrfToken = '';
+
+function showLogin(message = '') {
+  csrfToken = '';
+  loginOverlay.classList.add('visible');
+  logoutBtn.hidden = true;
+  sessionState.textContent = 'Belum login';
+  loginError.textContent = message;
+}
+
+function showSession(actor) {
+  loginOverlay.classList.remove('visible');
+  logoutBtn.hidden = false;
+  sessionState.textContent = actor ? `Login: ${actor}` : 'Login aktif';
+  loginError.textContent = '';
+}
+
+async function loadSession() {
+  const response = await fetch('/api/session', { credentials: 'same-origin' });
+  if (response.status === 401) {
+    showLogin();
+    return false;
+  }
+  if (!response.ok) {
+    showLogin('Layanan sesi sedang tidak tersedia.');
+    return false;
+  }
+  const session = await response.json();
+  csrfToken = session.csrfToken || '';
+  showSession(session.actor);
+  return true;
+}
+
+loginForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  loginSubmitBtn.disabled = true;
+  loginError.textContent = '';
+  try {
+    const response = await fetch('/api/session/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: document.getElementById('adminPassword').value }),
+    });
+    if (!response.ok) {
+      showLogin(response.status === 429
+        ? 'Terlalu banyak percobaan. Coba lagi nanti.'
+        : 'Password tidak valid.');
+      return;
+    }
+    const session = await response.json();
+    csrfToken = session.csrfToken || '';
+    document.getElementById('adminPassword').value = '';
+    showSession(session.actor);
+    appendLog('Login admin berhasil.');
+    loadTemplates();
+  } finally {
+    loginSubmitBtn.disabled = false;
+  }
+});
+
+logoutBtn.addEventListener('click', async () => {
+  stopPolling();
+  await fetch('/api/session/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRF-Token': csrfToken },
+  }).catch(() => {});
+  showLogin();
+  appendLog('Logout. Session admin dihapus.');
+});
+
+// ============================================================
+// RENDER PANEL
+// ============================================================
+const renderForm = document.getElementById('renderForm');
+const renderTemplate = document.getElementById('renderTemplate');
+const renderSubmitBtn = document.getElementById('renderSubmitBtn');
+const renderStatus = document.getElementById('renderStatus');
+const renderProgress = document.getElementById('renderProgress');
+const renderProgressText = document.getElementById('renderProgressText');
+const renderJobId = document.getElementById('renderJobId');
+const renderResult = document.getElementById('renderResult');
+const renderVideo = document.getElementById('renderVideo');
+const downloadVideo = document.getElementById('downloadVideo');
+const TEMPLATE_PREVIEW_MAP = {
+  'kinetic-text': 'kinetic',
+  base: 'base',
+  'image-slideshow': 'slideshow',
+  'video-mixer': 'mixer',
+};
+const PREVIEW_TEMPLATE_MAP = Object.fromEntries(
+  Object.entries(TEMPLATE_PREVIEW_MAP).map(([templateId, previewId]) => [previewId, templateId])
+);
+
+let pollTimer = null;
+let activeJobId = '';
+
+function stopPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+function setProgress(percent) {
+  const value = Math.max(0, Math.min(100, Math.round(percent)));
+  renderProgress.style.width = `${value}%`;
+  renderProgressText.textContent = `${value}%`;
+}
+
+// BullMQ stores the whole renderer progress object (progress/status/renderedFrames);
+// the in-memory queue exposes the same object on its record. Accept a bare number too.
+function describeJob(job) {
+  const raw = job.progress;
+  const progressRecord = typeof raw === 'object' && raw !== null ? raw : {};
+  const percent = typeof raw === 'number' ? raw : Number(progressRecord.progress ?? 0);
+  const renderedFrames = progressRecord.renderedFrames;
+  const totalFrames = progressRecord.totalFrames;
+  const suffix = renderedFrames ? ` (${renderedFrames}/${totalFrames} frame)` : '';
+  const labels = {
+    queued: 'Dalam antrean',
+    waiting: 'Menunggu worker',
+    waiting_children: 'Menunggu worker',
+    delayed: 'Dalam antrean',
+    active: 'Sedang dirender',
+    processing: 'Sedang dirender',
+    completed: 'Selesai',
+    failed: 'Gagal',
+  };
+  return {
+    percent,
+    label: String(labels[job.status] || job.status) + suffix,
+    terminal: job.status === 'completed' || job.status === 'failed',
+  };
+}
+
+// Local Studio output is served by our own route, so we control the query string.
+// Signed object-storage URLs (AWS/MinIO) carry the signature in the query — appending
+// anything there breaks the signature, so those are used verbatim.
+function getDownloadUrl(url) {
+  if (url.startsWith('/api/studio/output/')) {
+    return url.includes('?') ? `${url}&download=1` : `${url}?download=1`;
+  }
+  return url;
+}
+
+async function pollJob(jobId) {
+  const response = await fetch(`/api/studio/jobs/${encodeURIComponent(jobId)}`, {
+    credentials: 'same-origin',
+  });
+  if (response.status === 401) {
+    stopPolling();
+    showLogin('Sesi berakhir. Silakan login lagi.');
+    return;
+  }
+  if (!response.ok) {
+    renderStatus.textContent = 'Status tidak tersedia';
+    return;
+  }
+  const job = await response.json();
+  const described = describeJob(job);
+  setProgress(described.percent);
+  renderStatus.textContent = described.label;
+
+  if (!described.terminal) return;
+  stopPolling();
+  renderSubmitBtn.disabled = false;
+
+  if (job.status === 'failed') {
+    appendLog(`Render gagal: ${job.error || 'tanpa detail'}`);
+    return;
+  }
+  if (job.result?.url) {
+    renderVideo.src = job.result.url;
+    downloadVideo.href = getDownloadUrl(job.result.url);
+    renderResult.classList.add('visible');
+    appendLog(`Render selesai: ${job.result.url}`);
+  }
+}
+
+renderForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  stopPolling();
+  renderSubmitBtn.disabled = true;
+  renderResult.classList.remove('visible');
+  renderVideo.removeAttribute('src');
+  setProgress(0);
+  renderStatus.textContent = 'Mengirim...';
+
+  const [width, height] = document.getElementById('renderResolution').value.split('x').map(Number);
+  const audioUrl = document.getElementById('renderAudioUrl').value.trim();
+  const payload = {
+    template: renderTemplate.value,
+    duration: Number(document.getElementById('renderDuration').value),
+    fps: Number(document.getElementById('renderFps').value),
+    width,
+    height,
+    codec: document.getElementById('renderCodec').value,
+  };
+  if (audioUrl) payload.audio_url = audioUrl;
+
+  try {
+    const response = await fetch('/api/studio/render', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      showLogin('Sesi berakhir. Silakan login lagi.');
+      return;
+    }
+    if (!response.ok) {
+      renderStatus.textContent = 'Gagal dikirim';
+      appendLog(`Render ditolak: ${body.error || response.status}`);
+      renderSubmitBtn.disabled = false;
+      return;
+    }
+    activeJobId = body.job_id;
+    renderJobId.textContent = `Job ${activeJobId}`;
+    appendLog(`Job dikirim: ${activeJobId}`);
+    pollTimer = setInterval(() => pollJob(activeJobId), 1000);
+    pollJob(activeJobId);
+  } catch (error) {
+    renderStatus.textContent = 'Gagal dikirim';
+    appendLog(`Render gagal dikirim: ${error.message}`);
+    renderSubmitBtn.disabled = false;
+  }
+});
+
+function selectPreviewTemplate(previewId) {
+  if (!previewId) return;
+  activeTemplate = previewId;
+  document.querySelectorAll('.tab-btn').forEach((button) => {
+    button.classList.toggle('active', button.dataset.tpl === previewId);
+  });
+  updateUI();
+}
+
+async function loadTemplates() {
+  const response = await fetch('/api/studio/templates', { credentials: 'same-origin' });
+  if (!response.ok) return;
+  const { templates } = await response.json();
+  renderTemplate.replaceChildren(...templates.map(({ id, label }) => {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = label;
+    return option;
+  }));
+  const matchingTemplate = PREVIEW_TEMPLATE_MAP[activeTemplate];
+  if (matchingTemplate && templates.some(({ id }) => id === matchingTemplate)) {
+    renderTemplate.value = matchingTemplate;
+  }
+}
+
+renderTemplate.addEventListener('change', () => {
+  const previewId = TEMPLATE_PREVIEW_MAP[renderTemplate.value];
+  selectPreviewTemplate(previewId);
+  if (previewId) appendLog(`Switched preview to ${renderTemplate.value}.html`);
+});
+
 // Event Listeners
 document.querySelectorAll('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeTemplate = btn.dataset.tpl;
-    appendLog(`Switched template → ${activeTemplate}.html`);
-    updateUI();
+    selectPreviewTemplate(btn.dataset.tpl);
+    const templateId = PREVIEW_TEMPLATE_MAP[activeTemplate];
+    if (templateId && [...renderTemplate.options].some((option) => option.value === templateId)) {
+      renderTemplate.value = templateId;
+    }
+    appendLog(`Switched preview to ${templateId || activeTemplate}.html`);
   });
 });
 
@@ -609,35 +967,13 @@ document.getElementById('snapshotBtn').addEventListener('click', () => {
   appendLog(`Exported 1920x1080 PNG frame #${currentFrame}`);
 });
 
-document.getElementById('simPipelineBtn').addEventListener('click', async () => {
-  const items = document.querySelectorAll('#stageList .stage-item');
-  items.forEach((el) => {
-    el.className = 'stage-item';
-    el.lastElementChild.textContent = '⏳ Waiting';
-  });
-
-  const steps = [
-    'ChatGPT MCP calling higgsfield_generate_image (1920x1080)...',
-    'DeepSeek Engineer Stage 1: Validating HTML & window.renderFrame(t)...',
-    'DeepSeek Engineer Stage 2: Inlining CSS/JS & optimizing fonts...',
-    'DeepSeek Engineer Stage 3: Running 3-frame Playwright headless dry-run...',
-    'DeepSeek Engineer Stage 5: Approved HTML hash sha256:9f84c2a1...',
-    'VPS Worker: Parallel chunked rendering (600 frames @ 60fps) + FFmpeg libx264...',
-  ];
-
-  for (let i = 0; i < steps.length; i++) {
-    items[i].className = 'stage-item active';
-    items[i].lastElementChild.textContent = '⚙️ Running';
-    appendLog(steps[i]);
-    await new Promise((r) => setTimeout(r, 550));
-    items[i].className = 'stage-item done';
-    items[i].lastElementChild.textContent = '✅ Done';
-  }
-  appendLog('✅ Job completed → output/job-a1b2c3.mp4 (1080p 60fps)');
-});
+window.addEventListener('beforeunload', stopPolling);
 
 appendLog('Motion Studio Live Preview initialized (1920x1080 @ 60fps)');
 appendLog('Deterministic function window.renderFrame(t) active');
+loadSession().then((authenticated) => {
+  if (authenticated) loadTemplates();
+}).catch(() => showLogin('Layanan sesi sedang tidak tersedia.'));
 </script>
 </body>
 </html>

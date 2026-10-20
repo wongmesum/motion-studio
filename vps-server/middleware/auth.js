@@ -4,6 +4,10 @@ import {
   findUserByToken,
   incrementUserQuota,
 } from '../config-store.js';
+import {
+  createConfiguredAdminSessionService,
+  getSessionToken,
+} from '../security/admin-session.js';
 
 const WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60000);
 const DEFAULT_MAX_REQ = Number(process.env.RATE_LIMIT_MAX_REQUESTS || 20);
@@ -116,29 +120,56 @@ export async function adminAuth(req, res, next) {
   const serviceKeys = await getServiceKeys();
   const token = req.headers['x-admin-token'] || req.headers['x-token'] || '';
 
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized: X-Admin-Token header required' });
+  if (token) {
+    if (
+      safeSecretEqual(token, serviceKeys.adminToken) ||
+      safeSecretEqual(token, serviceKeys.vpsToken)
+    ) {
+      req.adminActor = 'Super Admin (Master Token)';
+      return next();
+    }
+
+    const user = await findUserByToken(token);
+    if (
+      user &&
+      user.status === 'active' &&
+      (user.role === 'admin' || user.role === 'engineer')
+    ) {
+      req.adminActor = `${user.name} (${user.role})`;
+      return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized admin token' });
   }
 
-  if (
-    safeSecretEqual(token, serviceKeys.adminToken) ||
-    safeSecretEqual(token, serviceKeys.vpsToken)
-  ) {
-    req.adminActor = 'Super Admin (Master Token)';
+  // No credential of any kind: answer without touching the session store, so an
+  // unauthenticated request never depends on Redis being reachable.
+  const sessionToken = getSessionToken(req.headers.cookie || '');
+  if (!sessionToken) {
+    return res.status(401).json({ error: 'Unauthorized: missing X-Admin-Token header or admin session' });
+  }
+
+  try {
+    const session = await createConfiguredAdminSessionService().getSession(sessionToken);
+    if (!session) {
+      return res.status(401).json({ error: 'Sesi admin tidak valid atau sudah berakhir' });
+    }
+    req.adminActor = session.actor;
+    req.adminSession = session;
+    req.adminSessionToken = sessionToken;
     return next();
+  } catch (error) {
+    return res.status(503).json({ error: 'Layanan sesi admin sedang tidak tersedia' });
   }
+}
 
-  const user = await findUserByToken(token);
-  if (
-    user &&
-    user.status === 'active' &&
-    (user.role === 'admin' || user.role === 'engineer')
-  ) {
-    req.adminActor = `${user.name} (${user.role})`;
-    return next();
+export function requireAdminCsrf(req, res, next) {
+  // Header-token clients do not use cookies and keep their existing API contract.
+  if (!req.adminSession) return next();
+  const service = createConfiguredAdminSessionService();
+  if (!service.isValidCsrf(req.adminSession, req.headers['x-csrf-token'])) {
+    return res.status(403).json({ error: 'Token CSRF tidak valid' });
   }
-
-  return res.status(401).json({ error: 'Unauthorized admin token' });
+  return next();
 }
 
 /**

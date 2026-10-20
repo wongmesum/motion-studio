@@ -97,6 +97,21 @@
     background: var(--emerald);
     box-shadow: 0 0 8px var(--emerald);
   }
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 1000; display: none; place-items: center;
+    background: rgba(3, 5, 12, .9); backdrop-filter: blur(12px); padding: 20px;
+  }
+  .login-overlay.visible { display: grid; }
+  .login-card {
+    width: min(420px, 100%); padding: 24px; border-radius: 16px;
+    background: var(--panel); border: 1px solid var(--border); display: grid; gap: 14px;
+  }
+  .login-card p { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .login-card input {
+    width: 100%; padding: 10px; border-radius: 8px; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border);
+  }
+  .login-error { color: var(--rose); font-size: 12px; min-height: 18px; }
   .btn {
     display: inline-flex;
     align-items: center;
@@ -509,11 +524,23 @@
     <a class="btn" href="https://api-docs.deepseek.com/" target="_blank" rel="noopener">
       📚 DeepSeek API Docs ↗
     </a>
-    <a class="btn btn-purple" href="preview-studio.html">
+    <a class="btn btn-purple" href="/studio">
       🎬 Buka 1080p Preview Studio
     </a>
+    <button class="btn" id="logoutBtn" hidden>Logout</button>
   </div>
 </header>
+
+<div class="login-overlay" id="loginOverlay">
+  <form class="login-card" id="loginForm">
+    <h2>Login Admin Dashboard</h2>
+    <p>Masukkan password admin. Session ini juga membuka Studio selama 8 jam.</p>
+    <label for="adminPassword" style="font-size:12px;color:var(--muted);">Password admin</label>
+    <input type="password" id="adminPassword" autocomplete="current-password" required>
+    <button class="btn btn-primary" id="loginSubmitBtn" type="submit">Masuk</button>
+    <div class="login-error" id="loginError" role="status" aria-live="polite"></div>
+  </form>
+</div>
 
 <div class="layout">
   <!-- SIDEBAR -->
@@ -1103,40 +1130,94 @@
 
 <script>
 const STORAGE_KEY = 'motion_studio_admin_state_v2';
-const ADMIN_TOKEN_STORAGE_KEY = 'motion_studio_admin_token_session';
 const API_BASE = window.location.protocol.startsWith('http') ? window.location.origin : 'http://localhost:3000';
 let backendConnected = false;
 let revealedTokens = {};
-let adminToken = sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || '';
+let csrfToken = '';
 
-function getAdminHeaders(extra = {}) {
-  return adminToken ? { ...extra, 'X-Admin-Token': adminToken } : extra;
+function showLogin(message = '') {
+  csrfToken = '';
+  document.getElementById('loginOverlay').classList.add('visible');
+  document.getElementById('logoutBtn').hidden = true;
+  document.getElementById('loginError').textContent = message;
 }
 
-function promptForAdminToken() {
-  const token = window.prompt('Masukkan X-Admin-Token untuk membuka Admin Dashboard:');
-  if (!token) return false;
-  adminToken = token.trim();
-  sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, adminToken);
-  return Boolean(adminToken);
+function showAuthenticated() {
+  document.getElementById('loginOverlay').classList.remove('visible');
+  document.getElementById('logoutBtn').hidden = false;
+  document.getElementById('loginError').textContent = '';
+}
+
+function isMutationMethod(method = 'GET') {
+  return !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
 }
 
 async function authenticatedFetch(url, options = {}) {
-  const requestOptions = { ...options, headers: getAdminHeaders(options.headers || {}) };
-  let response = await fetch(url, requestOptions);
-  if (response.status === 401 && promptForAdminToken()) {
-    response = await fetch(url, {
-      ...options,
-      headers: getAdminHeaders(options.headers || {}),
-    });
-  }
+  const headers = { ...(options.headers || {}) };
+  if (isMutationMethod(options.method) && csrfToken) headers['X-CSRF-Token'] = csrfToken;
+  const response = await fetch(url, { ...options, credentials: 'same-origin', headers });
   if (response.status === 401) {
-    adminToken = '';
-    sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-    throw new Error('Admin token tidak valid');
+    showLogin('Sesi berakhir. Silakan login lagi.');
+    throw new Error('Sesi admin tidak valid');
+  }
+  if (response.status === 403 && isMutationMethod(options.method)) {
+    await loadSession();
+    throw new Error('Token CSRF tidak valid. Coba ulangi operasi.');
   }
   return response;
 }
+
+async function loadSession() {
+  const response = await fetch(`${API_BASE}/api/session`, { credentials: 'same-origin' });
+  if (response.status === 401) {
+    showLogin();
+    return false;
+  }
+  if (!response.ok) {
+    showLogin('Layanan sesi sedang tidak tersedia.');
+    return false;
+  }
+  const session = await response.json();
+  csrfToken = session.csrfToken || '';
+  showAuthenticated();
+  return true;
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const submitButton = document.getElementById('loginSubmitBtn');
+  submitButton.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/api/session/login`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: document.getElementById('adminPassword').value })
+    });
+    if (!response.ok) {
+      showLogin(response.status === 429
+        ? 'Terlalu banyak percobaan. Coba lagi nanti.'
+        : 'Password tidak valid.');
+      return;
+    }
+    const session = await response.json();
+    csrfToken = session.csrfToken || '';
+    document.getElementById('adminPassword').value = '';
+    showAuthenticated();
+    await syncFromBackend();
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch(`${API_BASE}/api/session/logout`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRF-Token': csrfToken }
+  }).catch(() => {});
+  showLogin();
+});
 
 function generateUuidLower() {
   if (window.crypto && window.crypto.randomUUID) {
@@ -1345,7 +1426,6 @@ async function syncFromBackend() {
     const data = await res.json();
     backendConnected = true;
     document.getElementById('connectionText').textContent = 'VPS Server & AI Provider Connected';
-    sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, adminToken);
 
     const keysRes = await authenticatedFetch(`${API_BASE}/api/admin/keys`);
     const keysData = keysRes.ok ? await keysRes.json() : null;
@@ -2215,7 +2295,9 @@ function exportAuditLogs() {
 }
 
 // Init
-syncFromBackend();
+loadSession().then((authenticated) => {
+  if (authenticated) syncFromBackend();
+}).catch(() => showLogin('Layanan sesi sedang tidak tersedia.'));
 </script>
 </body>
 </html>

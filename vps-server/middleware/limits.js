@@ -1,3 +1,8 @@
+import { assertAllowedAudioUrl } from '../security/audio-policy.js';
+import { AUDIO_LIMITS } from '../security/audio-limits.js';
+
+export { AUDIO_LIMITS };
+
 /**
  * Batas Resource per Job Render (Mencegah OOM / Penyalahgunaan CPU)
  */
@@ -11,26 +16,42 @@ export const JOB_LIMITS = {
   timeoutMs: Number(process.env.JOB_TIMEOUT_MS || 10 * 60 * 1000),
 };
 
-export const AUDIO_LIMITS = {
-  maxBytes: Number(process.env.MAX_AUDIO_BYTES || 25 * 1024 * 1024),
-  downloadTimeoutMs: Number(process.env.MAX_AUDIO_DOWNLOAD_MS || 60_000),
-  maxRedirects: 3,
-};
+const ALLOWED_CODECS = new Set(['h264', 'h265', 'av1', 'nvenc']);
+
+function isFinitePositive(value) {
+  return Number.isFinite(value) && value > 0;
+}
 
 export function validateJobLimits(job) {
   const duration = Number(job.duration ?? 10);
   const fps = Number(job.fps ?? 60);
   const width = Number(job.width ?? 1920);
   const height = Number(job.height ?? 1080);
+  const codec = String(job.codec ?? 'h264').toLowerCase();
 
-  if (duration <= 0 || duration > JOB_LIMITS.maxDuration) {
+  if (!isFinitePositive(duration) || duration > JOB_LIMITS.maxDuration) {
     throw new Error(`Duration must be between 1s and ${JOB_LIMITS.maxDuration}s`);
   }
-  if (fps <= 0 || fps > JOB_LIMITS.maxFps) {
-    throw new Error(`FPS must be between 1 and ${JOB_LIMITS.maxFps}`);
+  if (!isFinitePositive(fps) || !Number.isInteger(fps) || fps > JOB_LIMITS.maxFps) {
+    throw new Error(`FPS must be an integer between 1 and ${JOB_LIMITS.maxFps}`);
   }
-  if (width > JOB_LIMITS.maxWidth || height > JOB_LIMITS.maxHeight) {
-    throw new Error(`Resolution max is ${JOB_LIMITS.maxWidth}x${JOB_LIMITS.maxHeight}`);
+  const validResolution = isFinitePositive(width)
+    && isFinitePositive(height)
+    && Number.isInteger(width)
+    && Number.isInteger(height)
+    && width <= JOB_LIMITS.maxWidth
+    && height <= JOB_LIMITS.maxHeight;
+  if (!validResolution) {
+    throw new Error(`Resolution must use positive integers up to ${JOB_LIMITS.maxWidth}x${JOB_LIMITS.maxHeight}`);
+  }
+  if (!ALLOWED_CODECS.has(codec)) {
+    throw new Error(`Codec must be one of: ${[...ALLOWED_CODECS].join(', ')}`);
+  }
+  if (job.audio_url !== undefined && job.audio_url !== null && job.audio_url !== '') {
+    if (typeof job.audio_url !== 'string') {
+      throw new Error('URL audio wajib berupa string');
+    }
+    assertAllowedAudioUrl(job.audio_url);
   }
   if (Array.isArray(job.assets) && job.assets.length > JOB_LIMITS.maxAssets) {
     throw new Error(`Assets count max is ${JOB_LIMITS.maxAssets}`);

@@ -151,7 +151,27 @@ bash scripts/install-vps.sh
 docker compose up -d --build
 ```
 
-### 3. Uji Kirim Job Render via API
+### 3. Login Studio dan Render dari Browser
+
+Set password admin langsung di terminal VPS. Script memakai prompt tersembunyi,
+menyimpan hash scrypt saja ke `.env`, lalu membuat ulang container API:
+
+```bash
+sudo scripts/set-admin-password.sh
+```
+
+Password jangan dikirim lewat chat, disimpan di browser storage, atau ditulis sebagai
+argumen command. Buka `/studio`, masukkan password, lalu pilih template, durasi, FPS,
+resolusi, codec, dan `audio_url` opsional. Tombol **Render Video** membuat job nyata;
+panel menampilkan progress, preview, dan link unduhan setelah selesai. Session yang sama
+membuka `/admin`, berlaku 8 jam, dan dapat diakhiri lewat tombol logout.
+
+`H.264` paling kompatibel untuk preview browser. `H.265` dan `AV1` bergantung pada
+browser serta sistem operasi. `NVENC` memerlukan GPU NVIDIA dan driver yang cocok pada
+worker. Aturan HTTPS, hostname, format, ukuran, serta timeout untuk `audio_url` mengikuti
+bagian [Audio](#audio).
+
+### 4. Uji Kirim Job Render via API
 
 ```bash
 curl -X POST http://localhost:3000/render \
@@ -162,7 +182,7 @@ curl -X POST http://localhost:3000/render \
 # Use generated values from vps-server/data/generated-secrets.json, or set explicit deployment secrets.
 ```
 
-### 4. Cek Status & Hasil Video
+### 5. Cek Status & Hasil Video
 
 ```bash
 curl http://localhost:3000/jobs/JOB_ID \
@@ -172,7 +192,7 @@ curl http://localhost:3000/jobs/JOB_ID \
 Hasil video tersimpan di `./output/JOB_ID.mp4` atau melalui Signed URL MinIO S3.
 Unduhan lokal lewat `GET /output/JOB_ID.mp4` juga wajib menyertakan `X-Token`.
 
-### 5. Operasi Produksi
+### 6. Operasi Produksi
 
 Backup mencakup `vps-server/data`, `output`, dan snapshot konsisten volume Redis.
 Redis dihentikan singkat selama volume disalin lalu dijalankan kembali dengan verifikasi

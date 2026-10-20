@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { resolveFfprobeBinary } from '../ffmpeg.js';
-import { AUDIO_LIMITS } from '../middleware/limits.js';
+import { AUDIO_LIMITS } from './audio-limits.js';
 import {
   getAllowedRenderHosts,
   isAllowedRemoteAssetUrl,
