@@ -1540,3 +1540,37 @@ test('logout returns to the login overlay and stops job polling', async () => {
     await stack.close();
   }
 });
+
+
+test('gesture path editor drags a cursor waypoint and preserves scene data', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.click('#addSceneBtn');
+    const add = page.getByRole('button', { name: '+ Tambah gesture' });
+    await add.click();
+    const handles = page.locator('#gesturePathEditor circle');
+    await handles.first().waitFor({ timeout: PAGE_TIMEOUT_MS });
+    assert.equal(await handles.count(), 2);
+    // Tap handles overlap; use the destination handle, initially centred.
+    const dest = handles.last();
+    const origin = await dest.boundingBox();
+    assert.ok(origin);
+    await page.mouse.move(origin.x + origin.width / 2, origin.y + origin.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(origin.x + origin.width / 2 + 65, origin.y + origin.height / 2 + 20, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForFunction(() => {
+      const circle = document.querySelectorAll('#gesturePathEditor circle')[1];
+      return circle && Number(circle.getAttribute('cx')) > 500;
+    }, null, { timeout: PAGE_TIMEOUT_MS });
+    assert.ok(Number(await handles.last().getAttribute('cx')) > 500);
+  } finally {
+    await stack.close();
+  }
+});
