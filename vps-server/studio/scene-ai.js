@@ -15,6 +15,9 @@ Use this shape:
   "scenes": [{
     "durationSec": number,
     "transition": { "type": "fade" | "slide" | "none", "durationSec": number },
+    "gestures": [{ "type": "tap" | "swipe", "effect": "none" | "sunburst",
+      "startSec": number, "durationSec": number,
+      "from": { "x": number, "y": number }, "to": { "x": number, "y": number } }],
     "elements": [{
       "type": "text" | "image" | "video",
       "role": "title" | "subtitle" | "caption" | "background" | "pip" | "logo",
@@ -24,7 +27,7 @@ Use this shape:
     }]
   }]
 }
-Text elements may omit assetId. Image and video elements should only use asset IDs explicitly included in the user prompt; otherwise use text placeholders. Keep all user-visible copy in Indonesian unless requested otherwise. Only add motion presets for template base, on text elements with role title, subtitle, or caption. Other templates do not render motion yet, so omit it. startSec + durationSec must not exceed the scene duration. Use only the documented preset names, with positive durations. Maximum 20 scenes and 20 elements per scene.`;
+Text elements may omit assetId. Image and video elements should only use asset IDs explicitly included in the user prompt; otherwise use text placeholders. Keep all user-visible copy in Indonesian unless requested otherwise. Only add motion presets for template base, on text elements with role title, subtitle, or caption. Other templates do not render motion yet, so omit it. startSec + durationSec must not exceed the scene duration. Use only the documented preset names, with positive durations. When user requests a cursor, tap, click, or swipe, use scene-level gestures (up to 6 per scene). Coordinates must be 0..1, startSec + durationSec <= scene duration. Otherwise omit gestures. Maximum 20 scenes and 20 elements per scene.`;
 
 export class PromptUnavailableError extends Error {
   constructor(message = 'Provider AI belum dikonfigurasi') {
