@@ -18,6 +18,8 @@ export const PROJECT_LIMITS = {
 };
 
 export const ELEMENT_TYPES = Object.freeze(['text', 'image', 'video']);
+export const GESTURE_TYPES = Object.freeze(['tap', 'swipe']);
+export const GESTURE_EFFECTS = Object.freeze(['none', 'sunburst']);
 export const MOTION_PRESETS = Object.freeze(['none', 'fade-in', 'slide-up', 'slide-left', 'zoom-in']);
 export const ELEMENT_ROLES = Object.freeze(['title', 'subtitle', 'caption', 'background', 'pip', 'logo']);
 export const TRANSITION_TYPES = Object.freeze(['fade', 'slide', 'none']);
@@ -216,6 +218,28 @@ function normalizeElement(element, textBudget) {
   return normalizeVisualElement(element, type);
 }
 
+function normalizeGesture(gesture, sceneDuration) {
+  if (!gesture || typeof gesture !== 'object' || Array.isArray(gesture)) {
+    throw new Error('Gesture tidak valid');
+  }
+  const type = normalizeEnum(gesture.type, 'tap', GESTURE_TYPES, 'Gesture');
+  const effect = normalizeEnum(gesture.effect, type === 'tap' ? 'sunburst' : 'none', GESTURE_EFFECTS, 'Efek gesture');
+  const startSec = gesture.startSec === undefined ? 0 : gesture.startSec;
+  const durationSec = gesture.durationSec === undefined ? Math.min(0.8, sceneDuration) : gesture.durationSec;
+  if (!Number.isFinite(startSec) || startSec < 0 || !Number.isFinite(durationSec)
+    || durationSec <= 0 || durationSec > 60 || startSec + durationSec > sceneDuration + 0.00001) {
+    throw new Error('Timing gesture melebihi durasi scene');
+  }
+  const start = gesture.from && typeof gesture.from === 'object' ? gesture.from : {};
+  const end = gesture.to && typeof gesture.to === 'object' ? gesture.to : {};
+  return {
+    type, effect, startSec, durationSec,
+    from: { x: normalizeUnit(start.x, 0.3, 'gesture from.x'), y: normalizeUnit(start.y, 0.5, 'gesture from.y') },
+    to: { x: normalizeUnit(end.x, type === 'tap' ? normalizeUnit(start.x, 0.3, 'gesture from.x') : 0.7, 'gesture to.x'),
+      y: normalizeUnit(end.y, normalizeUnit(start.y, 0.5, 'gesture from.y'), 'gesture to.y') },
+  };
+}
+
 function normalizeScene(scene, textBudget) {
   const elements = Array.isArray(scene?.elements) ? scene.elements : [];
   if (elements.length > PROJECT_LIMITS.maxElementsPerScene) {
@@ -235,8 +259,14 @@ function normalizeScene(scene, textBudget) {
       throw new Error('Animasi elemen melebihi durasi scene');
     }
   }
+  if (scene?.gestures !== undefined && !Array.isArray(scene.gestures)) {
+    throw new Error('Daftar gesture tidak valid');
+  }
+  const gestures = scene?.gestures || [];
+  if (gestures.length > 6) throw new Error('Gesture per scene maksimal 6');
   return {
     id: normalizeId(scene?.id, SCENE_ID_PATTERN, 'scn'),
+    ...(gestures.length ? { gestures: gestures.map((gesture) => normalizeGesture(gesture, durationSec)) } : {}),
     durationSec,
     transition: normalizeTransition(scene?.transition),
     elements: elements.map((element) => normalizeElement(element, textBudget)),
