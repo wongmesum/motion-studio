@@ -20,7 +20,7 @@ const TEXT_CAPABILITY = Object.freeze({
 
 const CAPABILITIES = Object.freeze({
   base: Object.freeze({
-    text: TEXT_CAPABILITY,
+    text: Object.freeze({ ...TEXT_CAPABILITY, motion: true }),
     image: TEXT_ONLY_VISUAL,
     video: TEXT_ONLY_VISUAL,
   }),
