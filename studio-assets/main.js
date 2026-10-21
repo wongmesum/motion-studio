@@ -239,6 +239,7 @@ store.subscribe((project) => {
   applyProjectToControls(project);
   timeline.render(project);
   inspector.render();
+  gesturePathEditor.render();
   preview.scheduleCompile();
   if (authenticated && !suppressAutosave) autosave.markDirty();
 });
