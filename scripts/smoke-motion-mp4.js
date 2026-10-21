@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { compileProject } from '../vps-server/studio/compile-project.js';
+
+function command(file, args) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(file, args, { stdio: 'pipe', env: process.env });
+    let stdout = '';
+    let stderr = '';
+    p.stdout.on('data', c => { stdout += c; });
+    p.stderr.on('data', c => { stderr += c; });
+    p.on('error', reject);
+    p.on('close', code => code === 0 ? resolve(stdout) : reject(new Error(file + ' exited ' + code + '\\n' + stderr.slice(-4000))));
+  });
+}
+
+const project = {
+  schemaVersion: 1, title: 'CI MP4 smoke', template: 'base',
+  render: { fps: 8, width: 640, height: 360, codec: 'h264' },
+  scenes: [{ durationSec: 1, transition: { type: 'none', durationSec: 0 }, elements: [
+    { type: 'text', role: 'title', text: 'CI MOTION',
+      motion: { preset: 'fade-in', startSec: 0, durationSec: 0.5 } }
+  ] }]
+};
+const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'motion-mp4-'));
+try {
+  const { html } = await compileProject(project, {
+    target: 'render',
+    readTemplate: () => fs.readFile(path.resolve('render-engine/templates/base.html'), 'utf8')
+  });
+  const template = path.join(dir, 'compiled.html');
+  const output = path.join(dir, 'motion.mp4');
+  await fs.writeFile(template, html);
+  await command(process.execPath, [
+    path.resolve('render.js'), '--template', template, '--duration', '1', '--fps', '8',
+    '--width', '640', '--height', '360', '--parallel', '1', '--quality', '65',
+    '--preset', 'ultrafast', '--output', output, '--framesDir', path.join(dir, 'frames')
+  ]);
+  const info = await command('ffprobe', [
+    '-v', 'error', '-select_streams', 'v:0',
+    '-show_entries', 'stream=codec_name,width,height,nb_frames',
+    '-of', 'json', output
+  ]);
+  const stream = JSON.parse(info).streams?.[0];
+  if (stream?.codec_name !== 'h264' || stream?.width !== 640 || stream?.height !== 360
+    || Number(stream?.nb_frames) !== 8) {
+    throw new Error('Unexpected MP4 stream: ' + JSON.stringify(stream));
+  }
+  console.log('MP4 smoke successful: H264 640x360, 8 frames');
+} finally {
+  await fs.rm(dir, { recursive: true, force: true });
+}
