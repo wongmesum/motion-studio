@@ -17,9 +17,11 @@
 
   const canvas = document.createElement('canvas');
   canvas.id = 'motion-gesture-layer';
-  canvas.width = 1920;
-  canvas.height = 1080;
-  canvas.style.cssText = 'position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;z-index:1000;';
+  canvas.width = project.render && project.render.width || 1920;
+  canvas.height = project.render && project.render.height || 1080;
+  // Map 0..1 waypoints to the actual output viewport (including mobile portrait).
+  // The preview iframe may be displayed at a different CSS size from the export.
+  canvas.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1000;';
   document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
   const source = art.cursor.layers[0].shapes[0].it.find(item => item.ty === 'sh').ks.k;
