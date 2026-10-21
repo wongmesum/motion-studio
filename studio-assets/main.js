@@ -12,6 +12,7 @@ import { createAssetsPanel } from './assets-panel.js';
 import { createAutosave } from './autosave.js';
 import { setButtonIcon } from './icons.js';
 import { createInspector } from './inspector.js';
+import { createGesturePathEditor } from './gesture-path-editor.js';
 import { createPreviewFrame } from './preview-frame.js';
 import { downloadProject, importProjectFile } from './project-io.js';
 import { createProjectLibrary } from './project-library.js';
@@ -120,13 +121,17 @@ const assetsPanel = createAssetsPanel({
 });
 
 const inspector = createInspector({ document: doc, store, assetsPanel, notify });
+const gesturePathEditor = createGesturePathEditor({ document: doc, store, getSelection: () => inspector.getSelection() });
 
 const timeline = createTimeline({
   document: doc,
   store,
   notify,
   bindAsset: (sceneId, assetId) => inspector.bindAsset(sceneId, assetId),
-  onSelectionChanged: (selection) => inspector.select(selection),
+  onSelectionChanged: (selection) => {
+    inspector.select(selection);
+    gesturePathEditor.render();
+  },
 });
 
 const preview = createPreviewFrame({
