@@ -1594,7 +1594,7 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
         circlePointer: circle ? getComputedStyle(circle).pointerEvents : null,
       };
     });
-    assert.ok(Number(debug.cx) > 500, 'Gesture drag did not persist: ' + JSON.stringify({ ...debug, hit }));
+    assert.ok(Number(debug.cx) > 500, 'Gesture drag did not persist: ' + JSON.stringify({ ...debug, hit, center, origin }));
   } finally {
     await stack.close();
   }
