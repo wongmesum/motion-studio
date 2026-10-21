@@ -11,7 +11,7 @@ export function createGesturePathEditor({ document: doc, store, getSelection }) 
   svg.setAttribute('viewBox', '0 0 1000 1000');
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('aria-label', 'Editor visual jalur gesture');
-  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none;';
+  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:auto;';
   stage.append(svg);
   let activeDrag = null;
 
