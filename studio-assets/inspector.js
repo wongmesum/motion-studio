@@ -260,6 +260,8 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
     if (element.type === 'text') textFields(elementGroup, scene, element);
     else visualFields(elementGroup, scene, element, project.template);
 
+    if (element.type === 'text' && ['title', 'subtitle', 'caption'].includes(element.role)
+      && supportsProperty(project.template, 'text', 'motion')) {
     const motionHeading = doc.createElement('h3');
     motionHeading.textContent = 'Animasi elemen';
     elementGroup.append(motionHeading);
@@ -279,6 +281,8 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
         } else notify('Timing animasi harus berada dalam durasi scene.', 'error');
       });
       elementGroup.append(control(doc, labelText, value));
+    }
+
     }
 
     const actions = doc.createElement('div');
