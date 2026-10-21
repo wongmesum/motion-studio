@@ -19,11 +19,12 @@ Use this shape:
       "type": "text" | "image" | "video",
       "role": "title" | "subtitle" | "caption" | "background" | "pip" | "logo",
       "text": string,
-      "assetId": string
+      "assetId": string,
+      "motion": { "preset": "none" | "fade-in" | "slide-up" | "slide-left" | "zoom-in", "startSec": number, "durationSec": number }
     }]
   }]
 }
-Text elements may omit assetId. Image and video elements should only use asset IDs explicitly included in the user prompt; otherwise use text placeholders. Keep all user-visible copy in Indonesian unless requested otherwise. Maximum 20 scenes and 20 elements per scene.`;
+Text elements may omit assetId. Image and video elements should only use asset IDs explicitly included in the user prompt; otherwise use text placeholders. Keep all user-visible copy in Indonesian unless requested otherwise. Give important text elements an entry motion preset when useful; startSec + durationSec must not exceed the scene duration. Use only the documented preset names, with positive durations. Maximum 20 scenes and 20 elements per scene.`;
 
 export class PromptUnavailableError extends Error {
   constructor(message = 'Provider AI belum dikonfigurasi') {
