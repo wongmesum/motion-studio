@@ -20,7 +20,10 @@ function command(file, args) {
 const project = {
   schemaVersion: 1, title: 'CI MP4 smoke', template: 'base',
   render: { fps: 8, width: 1920, height: 1080, codec: 'h264' },
-  scenes: [{ durationSec: 1, transition: { type: 'none', durationSec: 0 }, elements: [
+  scenes: [{ durationSec: 1, transition: { type: 'none', durationSec: 0 },
+    gestures: [{ type: 'tap', effect: 'sunburst', startSec: 0,
+      durationSec: 0.9, from: { x: 0.55, y: 0.45 }, to: { x: 0.55, y: 0.45 } }],
+    elements: [
     { type: 'text', role: 'title', text: 'CI MOTION',
       motion: { preset: 'fade-in', startSec: 0, durationSec: 0.5 } }
   ] }]
