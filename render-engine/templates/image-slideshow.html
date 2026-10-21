@@ -22,6 +22,56 @@ const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 const W = 1920, H = 1080;
 
+// ---- Motion Studio project data. Falls back to the demo slides when the compiled
+// data script is absent (legacy /render payloads). ----
+const PROJECT = (function () {
+  const node = document.getElementById('motion-project-data');
+  if (!node) return null;
+  try { return JSON.parse(node.textContent); } catch (error) { return null; }
+})();
+
+function projectElement(scene, type, role) {
+  if (!scene || !Array.isArray(scene.elements)) return null;
+  return scene.elements.find(function (element) {
+    return element.type === type && element.role === role;
+  }) || null;
+}
+
+const PROJECT_SLIDES = (function () {
+  const scenes = PROJECT && Array.isArray(PROJECT.scenes) ? PROJECT.scenes : [];
+  if (!scenes.length) return null;
+  const theme = PROJECT.theme || {};
+  return scenes.map(function (scene, index) {
+    const title = projectElement(scene, 'text', 'title');
+    const subtitle = projectElement(scene, 'text', 'subtitle')
+      || projectElement(scene, 'text', 'caption');
+    const background = projectElement(scene, 'image', 'background')
+      || projectElement(scene, 'image', 'pip');
+    return {
+      title: title ? title.text : 'SCENE ' + String(index + 1).padStart(2, '0'),
+      subtitle: subtitle ? subtitle.text : '',
+      titleSize: title ? title.fontSize : null,
+      titleColor: title ? title.color : null,
+      titleAlign: title ? title.align : null,
+      subtitleSize: subtitle ? subtitle.fontSize : null,
+      subtitleColor: subtitle ? subtitle.color : null,
+      subtitleAlign: subtitle ? subtitle.align : null,
+      c1: theme.backgroundColor || '#0f172a',
+      c2: theme.primaryColor && theme.primaryColor !== '#38bdf8'
+        ? theme.primaryColor
+        : '#1d4ed8',
+      accent: theme.accentColor || '#38bdf8',
+      src: background ? background.src : null,
+      // Only an explicit `contain` switches the drawing path; everything else covers.
+      fit: background && background.fit === 'contain' ? 'contain' : 'cover',
+      // Ken Burns is opt-in per element, never implied by the slide having an image.
+      kenBurns: Boolean(background && background.kenBurns === true),
+      durationSec: Number(scene.durationSec) > 0 ? Number(scene.durationSec) : null,
+      transition: scene.transition || null,
+    };
+  });
+})();
+
 const SLIDES = [
   {
     title: '01 / HIGGSFIELD AI GENERATION',
@@ -29,6 +79,7 @@ const SLIDES = [
     c1: '#0f172a',
     c2: '#1d4ed8',
     accent: '#38bdf8',
+    kenBurns: true,
   },
   {
     title: '02 / DEEPSEEK RENDER ENGINEER',
@@ -36,6 +87,7 @@ const SLIDES = [
     c1: '#1e1b4b',
     c2: '#6d28d9',
     accent: '#c084fc',
+    kenBurns: true,
   },
   {
     title: '03 / PLAYWRIGHT + FFMPEG FARM',
@@ -43,21 +95,99 @@ const SLIDES = [
     c1: '#064e3b',
     c2: '#047857',
     accent: '#34d399',
+    kenBurns: true,
   },
 ];
 
+// The scene durations own the video length. Legacy payloads keep the ten second demo
+// loop by splitting it evenly across the hardcoded slides.
+const TIMELINE = (function () {
+  const slides = PROJECT_SLIDES || SLIDES;
+  if (!slides.length) return null;
+  const fallbackSec = PROJECT_SLIDES ? 4 : 10 / slides.length;
+  let offset = 0;
+  return slides.map(function (slide, index) {
+    const durationSec = Number(slide.durationSec) > 0
+      ? Number(slide.durationSec)
+      : fallbackSec;
+    const entry = {
+      slide: slide,
+      index: index,
+      start: offset,
+      durationSec: durationSec,
+    };
+    offset += durationSec;
+    return entry;
+  });
+})();
+const TOTAL_DURATION = TIMELINE
+  ? TIMELINE.reduce(function (total, entry) { return total + entry.durationSec; }, 0)
+  : 10;
+
+function loadProjectImages(slides) {
+  if (!slides) return Promise.resolve();
+  return Promise.all(slides.map(function (slide) {
+    if (!slide.src) return Promise.resolve();
+    return new Promise(function (resolve) {
+      const image = new Image();
+      // A failed asset must not stall the frame loop; the gradient fallback draws instead.
+      image.onload = function () { slide.image = image; resolve(); };
+      image.onerror = function () { resolve(); };
+      image.src = slide.src;
+    });
+  }));
+}
+
+window.__ASSETS_READY__ = loadProjectImages(PROJECT_SLIDES);
+window.__AWAIT_FRAME__ = function () { return null; };
+
 const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
-function drawSlideContent(slide, index, localT, alpha) {
+/** Locate the slide that owns `time` using cumulative scene durations. */
+function entryAt(time) {
+  if (!TIMELINE || !TIMELINE.length) return null;
+  const clamped = Math.max(0, Math.min(TOTAL_DURATION - 0.0001, time));
+  for (let i = 0; i < TIMELINE.length; i++) {
+    const entry = TIMELINE[i];
+    // The final slide keeps the last instant instead of falling through to undefined.
+    if (clamped < entry.start + entry.durationSec || i === TIMELINE.length - 1) {
+      return {
+        entry: entry,
+        index: i,
+        localT: Math.max(0, clamped - entry.start),
+      };
+    }
+  }
+  return null;
+}
+
+/** Entry transition for a slide, bounded by half its duration. Pure function of time. */
+function transitionState(entry, localElapsed) {
+  const transition = entry.slide.transition || {};
+  const type = transition.type || 'fade';
+  const requestedSec = Number(transition.durationSec) > 0
+    ? Number(transition.durationSec)
+    : 0.5;
+  const windowSec = Math.min(requestedSec, entry.durationSec / 2);
+  const progress = windowSec > 0 ? Math.min(1, localElapsed / windowSec) : 1;
+
+  if (type === 'none') return { alpha: 1, x: 0, cut: true };
+  if (type === 'slide') return { alpha: progress, x: (1 - progress) * W * 0.35, cut: false };
+  return { alpha: progress, x: 0, cut: false };
+}
+
+function drawSlideContent(slide, index, progress, alpha, offsetX) {
   ctx.save();
   ctx.globalAlpha = alpha;
+  if (offsetX) ctx.translate(offsetX, 0);
 
-  // Ken Burns Zoom & Pan simulation
-  const zoom = 1 + localT * 0.08;
-  const panX = (index % 2 === 0 ? -1 : 1) * localT * 30;
-  ctx.translate(W / 2 + panX, H / 2);
-  ctx.scale(zoom, zoom);
-  ctx.translate(-W / 2, -H / 2);
+  if (slide.kenBurns === true) {
+    const zoom = 1 + progress * 0.08;
+    const panX = (index % 2 === 0 ? -1 : 1) * progress * 30;
+    ctx.translate(W / 2 + panX, H / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-W / 2, -H / 2);
+  }
 
   // Gradient Backdrop
   const g = ctx.createLinearGradient(0, 0, W, H);
@@ -66,10 +196,17 @@ function drawSlideContent(slide, index, localT, alpha) {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
+  if (slide.image) {
+    drawFittedImage(slide.image, slide.fit);
+    ctx.restore();
+    drawSlideCaption(slide, progress, alpha, offsetX);
+    return;
+  }
+
   // Geometric art cards (simulasi gambar komposit)
   for (let i = 0; i < 4; i++) {
     const cx = 380 + i * 380;
-    const cy = H / 2 + Math.sin(localT * 1.8 + i) * 45;
+    const cy = H / 2 + Math.sin(progress * 1.8 + i) * 45;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.strokeStyle = slide.accent;
     ctx.lineWidth = 2;
@@ -79,11 +216,52 @@ function drawSlideContent(slide, index, localT, alpha) {
     ctx.stroke();
   }
   ctx.restore();
+  drawSlideCaption(slide, progress, alpha, offsetX);
+}
 
+function drawFittedImage(image, fit) {
+  return fit === 'contain'
+    ? drawContainImage(image)
+    : drawCoverImage(image);
+}
+
+/** Fill the frame, cropping the overflow. */
+function drawCoverImage(image) {
+  const scale = Math.max(W / image.naturalWidth, H / image.naturalHeight);
+  const width = image.naturalWidth * scale;
+  const height = image.naturalHeight * scale;
+  ctx.drawImage(image, (W - width) / 2, (H - height) / 2, width, height);
+}
+
+/** Fit the whole frame inside, letterboxing onto the backdrop instead of cropping. */
+function drawContainImage(image) {
+  const scale = Math.min(W / image.naturalWidth, H / image.naturalHeight);
+  const width = image.naturalWidth * scale;
+  const height = image.naturalHeight * scale;
+  ctx.drawImage(image, (W - width) / 2, (H - height) / 2, width, height);
+}
+
+function captionAnchor(align, size) {
+  if (align === 'center') return { x: 150 + 1140 / 2, textAlign: 'center' };
+  if (align === 'right') return { x: 150 + 1140, textAlign: 'right' };
+  return { x: 150, textAlign: 'left' };
+}
+
+function drawCaptionLine(line, x, y, defaultSize, defaultColor, defaultWeight) {
+  const size = Number(line.size) > 0 ? Number(line.size) : defaultSize;
+  const anchor = captionAnchor(line.align, size);
+  ctx.font = defaultWeight + ' ' + size + 'px Inter, sans-serif';
+  ctx.textAlign = anchor.textAlign;
+  ctx.fillStyle = typeof line.color === 'string' && line.color ? line.color : defaultColor;
+  ctx.fillText(line.text, anchor.x, y);
+}
+
+function drawSlideCaption(slide, progress, alpha, offsetX) {
   // Lower-third Caption Card
   ctx.save();
   ctx.globalAlpha = alpha;
-  const cardSlide = easeInOutCubic(Math.min(1, localT / 0.6));
+  if (offsetX) ctx.translate(offsetX, 0);
+  const cardSlide = easeInOutCubic(Math.min(1, progress / 0.6));
   const cardY = H - 230 + (1 - cardSlide) * 60;
 
   ctx.fillStyle = 'rgba(9, 13, 22, 0.82)';
@@ -94,31 +272,43 @@ function drawSlideContent(slide, index, localT, alpha) {
   ctx.fillStyle = slide.accent;
   ctx.fillRect(110, cardY, 8, 150);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '800 44px Inter, sans-serif';
-  ctx.fillText(slide.title, 150, cardY + 66);
-
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '500 26px Inter, sans-serif';
-  ctx.fillText(slide.subtitle, 150, cardY + 114);
+  drawCaptionLine(
+    { text: String(slide.title || ''), size: slide.titleSize, color: slide.titleColor, align: slide.titleAlign },
+    150,
+    cardY + 66,
+    44,
+    '#ffffff',
+    '800'
+  );
+  drawCaptionLine(
+    { text: String(slide.subtitle || ''), size: slide.subtitleSize, color: slide.subtitleColor, align: slide.subtitleAlign },
+    150,
+    cardY + 114,
+    26,
+    '#cbd5e1',
+    '500'
+  );
   ctx.restore();
 }
 
 function drawSlideshow(t) {
-  const cycle = t % 10;
-  const slideDuration = 10 / SLIDES.length; // ~3.33s per slide
-  const currentIdx = Math.min(SLIDES.length - 1, Math.floor(cycle / slideDuration));
-  const nextIdx = (currentIdx + 1) % SLIDES.length;
-  const localT = (cycle - currentIdx * slideDuration) / slideDuration; // 0..1
-
   ctx.clearRect(0, 0, W, H);
-  drawSlideContent(SLIDES[currentIdx], currentIdx, localT, 1);
+  const active = entryAt(t);
+  if (!active) return;
 
-  // Smooth Crossfade + Directional Wipe pada 25% akhir setiap slide
-  if (localT > 0.75) {
-    const tr = easeInOutCubic((localT - 0.75) / 0.25);
-    drawSlideContent(SLIDES[nextIdx], nextIdx, 0, tr);
+  const entry = active.entry;
+  const progress = entry.durationSec > 0
+    ? Math.min(1, active.localT / entry.durationSec)
+    : 0;
+  const state = transitionState(entry, active.localT);
+
+  // The outgoing slide stays underneath an entry transition so fade and slide read as a
+  // crossfade or wipe instead of a dip to black. `none` skips straight to the new slide.
+  if (!state.cut && state.alpha < 1 && active.index > 0) {
+    const previous = TIMELINE[active.index - 1];
+    drawSlideContent(previous.slide, active.index - 1, 1, 1, 0);
   }
+  drawSlideContent(entry.slide, active.index, progress, state.alpha, state.x);
 }
 
 window.renderFrame = function(t) {

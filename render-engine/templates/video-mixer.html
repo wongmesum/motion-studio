@@ -22,7 +22,155 @@ const canvas = document.getElementById('mixer');
 const ctx = canvas.getContext('2d');
 const W = 1920, H = 1080;
 
+// ---- Motion Studio project data. Legacy renders keep simulated PiP cards. ----
+const PROJECT = (function () {
+  const node = document.getElementById('motion-project-data');
+  if (!node) return null;
+  try { return JSON.parse(node.textContent); } catch (error) { return null; }
+})();
+
+function mediaElements(scene) {
+  if (!scene || !Array.isArray(scene.elements)) return [];
+  return scene.elements.filter(function (element) {
+    return (element.type === 'image' || element.type === 'video')
+      && typeof element.src === 'string';
+  });
+}
+
+function textElement(scene, role) {
+  if (!scene || !Array.isArray(scene.elements)) return null;
+  return scene.elements.find(function (element) {
+    return element.type === 'text' && element.role === role;
+  }) || null;
+}
+
+const PROJECT_SCENES = PROJECT && Array.isArray(PROJECT.scenes) ? PROJECT.scenes : [];
+
+// Scene durations own the video length; the legacy demo keeps its ten second loop.
+const TIMELINE = (function () {
+  if (!PROJECT_SCENES.length) return null;
+  let offset = 0;
+  return PROJECT_SCENES.map(function (scene, index) {
+    const durationSec = Number(scene.durationSec) > 0 ? Number(scene.durationSec) : 4;
+    const entry = {
+      scene: scene,
+      index: index,
+      start: offset,
+      durationSec: durationSec,
+      media: mediaElements(scene),
+    };
+    offset += durationSec;
+    return entry;
+  });
+})();
+const TOTAL_DURATION = TIMELINE
+  ? TIMELINE.reduce(function (total, entry) { return total + entry.durationSec; }, 0)
+  : 10;
+
+function entryAt(time) {
+  if (!TIMELINE || !TIMELINE.length) return null;
+  const clamped = Math.max(0, Math.min(TOTAL_DURATION - 0.0001, time));
+  for (let i = 0; i < TIMELINE.length; i++) {
+    const entry = TIMELINE[i];
+    // The final scene keeps the last instant instead of falling through to undefined.
+    if (clamped < entry.start + entry.durationSec || i === TIMELINE.length - 1) {
+      return {
+        entry: entry,
+        index: i,
+        localT: Math.max(0, clamped - entry.start),
+      };
+    }
+  }
+  return null;
+}
+
+function transitionState(entry, localElapsed) {
+  const transition = entry.scene.transition || {};
+  const type = transition.type || 'fade';
+  const requestedSec = Number(transition.durationSec) > 0
+    ? Number(transition.durationSec)
+    : 0.5;
+  const windowSec = Math.min(requestedSec, entry.durationSec / 2);
+  const progress = windowSec > 0 ? Math.min(1, localElapsed / windowSec) : 1;
+
+  if (type === 'none') return { alpha: 1, x: 0, cut: true };
+  if (type === 'slide') return { alpha: progress, x: (1 - progress) * W * 0.35, cut: false };
+  return { alpha: progress, x: 0, cut: false };
+}
+
+const MEDIA_ELEMENTS = PROJECT_SCENES.reduce(function (all, scene) {
+  return all.concat(mediaElements(scene));
+}, []);
+
+function loadMedia(element) {
+  return new Promise(function (resolve) {
+    const media = element.type === 'video' ? document.createElement('video') : new Image();
+    const finish = function () { element.media = media; resolve(); };
+    media.onload = finish;
+    media.onloadeddata = finish;
+    media.onerror = function () { resolve(); };
+    if (element.type === 'video') {
+      media.muted = true;
+      media.loop = true;
+      media.preload = 'auto';
+    }
+    media.src = element.src;
+  });
+}
+window.__ASSETS_READY__ = Promise.all(MEDIA_ELEMENTS.map(loadMedia));
+
+// Videos never play: each frame is seeked to the requested timestamp so capture stays
+// deterministic regardless of decode speed. Only the active scene's videos are seeked,
+// and the seek position is the scene-local time so every scene starts from its own zero.
+window.__AWAIT_FRAME__ = function (time) {
+  const active = entryAt(time);
+  if (!active) return null;
+  const videos = active.entry.media
+    .map(function (element) { return element.media; })
+    .filter(function (media) { return media instanceof HTMLVideoElement; });
+  if (!videos.length) return null;
+  return Promise.all(videos.map(function (video) {
+    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
+    const target = duration ? active.localT % duration : 0;
+    if (Math.abs(video.currentTime - target) < 0.001) return null;
+    return new Promise(function (resolve) {
+      const done = function () { video.removeEventListener('seeked', done); resolve(); };
+      video.addEventListener('seeked', done);
+      video.currentTime = target;
+    });
+  }));
+};
+
+function drawCards(entry) {
+  const cards = entry.media.slice(0, 2).map(function (element, index) {
+    const width = Number.isFinite(element.width) ? element.width * W : 680;
+    return {
+      x: Number.isFinite(element.x) ? element.x * W : (index === 0 ? 180 : 1060),
+      y: Number.isFinite(element.y) ? element.y * H : 210,
+      w: Math.max(200, width),
+      h: 420,
+      label: (element.role || element.type).toUpperCase(),
+      hue: index === 0 ? 190 : 315,
+      media: element.media,
+    };
+  });
+
+  if (!cards.length) {
+    // Scene without media keeps two placeholder cards so the mix stays legible.
+    cards.push(
+      { x: 180, y: 210, w: 680, h: 420, label: 'CAM 01 • HIGGSFIELD VIDEO STREAM', hue: 190 },
+      { x: 1060, y: 210, w: 680, h: 420, label: 'CAM 02 • CANVAS OVERLAY', hue: 315 }
+    );
+  }
+  return cards;
+}
+
 function drawMixer(t) {
+  const active = entryAt(t);
+  const entry = active ? active.entry : null;
+  const localT = active ? active.localT : t;
+  const state = entry ? transitionState(entry, localT) : { alpha: 1, x: 0, cut: true };
+
   // Deep background
   ctx.fillStyle = '#05070f';
   ctx.fillRect(0, 0, W, H);
@@ -31,7 +179,7 @@ function drawMixer(t) {
   const cx = W / 2;
   const cy = H / 2 - 40;
   for (let ring = 0; ring < 14; ring++) {
-    const depth = ((ring - (t * 2.2) % 1 + 14) % 14) / 14;
+    const depth = ((ring - (localT * 2.2) % 1 + 14) % 14) / 14;
     if (depth <= 0.02) continue;
     const radius = Math.pow(depth, 1.8) * 950;
     const alpha = Math.sin(depth * Math.PI) * 0.45;
@@ -40,7 +188,7 @@ function drawMixer(t) {
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let s = 0; s <= 6; s++) {
-      const ang = (s / 6) * Math.PI * 2 + t * 0.35 + depth * 0.6;
+      const ang = (s / 6) * Math.PI * 2 + localT * 0.35 + depth * 0.6;
       const px = cx + Math.cos(ang) * radius;
       const py = cy + Math.sin(ang) * radius * 0.62;
       if (s === 0) ctx.moveTo(px, py);
@@ -49,14 +197,21 @@ function drawMixer(t) {
     ctx.stroke();
   }
 
-  // 2. Dual Picture-in-Picture (PiP) canvas frames
-  const cards = [
-    { x: 180, y: 210, w: 680, h: 420, label: 'CAM 01 • HIGGSFIELD VIDEO STREAM', hue: 190 },
-    { x: 1060, y: 210, w: 680, h: 420, label: 'CAM 02 • CANVAS OVERLAY', hue: 315 },
-  ];
+  // 2. Dual Picture-in-Picture (PiP) canvas frames. The scene transition fades and
+  // shifts the whole composite so `slide` reads as a wipe rather than a hard cut.
+  ctx.save();
+  ctx.globalAlpha = state.alpha;
+  if (state.x) ctx.translate(state.x, 0);
+
+  const cards = entry
+    ? drawCards(entry)
+    : [
+      { x: 180, y: 210, w: 680, h: 420, label: 'CAM 01 • HIGGSFIELD VIDEO STREAM', hue: 190 },
+      { x: 1060, y: 210, w: 680, h: 420, label: 'CAM 02 • CANVAS OVERLAY', hue: 315 },
+    ];
 
   cards.forEach((card, idx) => {
-    const floatY = Math.sin(t * 2 + idx * 1.5) * 12;
+    const floatY = Math.sin(localT * 2 + idx * 1.5) * 12;
     const y = card.y + floatY;
 
     // Card shadow & glass body
@@ -80,23 +235,40 @@ function drawMixer(t) {
     ctx.fillStyle = vg;
     ctx.fillRect(card.x, y, card.w, card.h);
 
+    if (card.media) {
+      const mediaW = card.media.naturalWidth || card.media.videoWidth || card.w;
+      const mediaH = card.media.naturalHeight || card.media.videoHeight || card.h;
+      const scale = Math.max(card.w / mediaW, card.h / mediaH);
+      const drawW = mediaW * scale;
+      const drawH = mediaH * scale;
+      ctx.drawImage(
+        card.media,
+        card.x + (card.w - drawW) / 2,
+        y + (card.h - drawH) / 2,
+        drawW,
+        drawH
+      );
+      ctx.restore();
+    } else {
     ctx.strokeStyle = `hsla(${card.hue}, 100%, 70%, 0.65)`;
     ctx.lineWidth = 3;
     ctx.beginPath();
     for (let px = 0; px < card.w; px += 8) {
-      const wave = Math.sin(px * 0.02 + t * 5 + idx) * 55 * Math.cos(t * 1.5 + px * 0.005);
+      const wave = Math.sin(px * 0.02 + localT * 5 + idx) * 55 * Math.cos(localT * 1.5 + px * 0.005);
       const wy = y + card.h / 2 + 20 + wave;
       if (px === 0) ctx.moveTo(card.x + px, wy);
       else ctx.lineTo(card.x + px, wy);
     }
     ctx.stroke();
     ctx.restore();
+    }
 
     // Header bar
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '700 20px monospace';
     ctx.fillText(card.label, card.x + 24, y + 34);
   });
+  ctx.restore();
 
   // 3. Audio Spectrum Visualizer Bars (Bottom Dock)
   const barCount = 48;
@@ -107,7 +279,7 @@ function drawMixer(t) {
   const baseY = H - 110;
 
   for (let i = 0; i < barCount; i++) {
-    const n = Math.abs(Math.sin(i * 0.35 + t * 6.5) * Math.cos(i * 0.15 - t * 4.2));
+    const n = Math.abs(Math.sin(i * 0.35 + localT * 6.5) * Math.cos(i * 0.15 - localT * 4.2));
     const bh = 16 + n * 120;
     ctx.fillStyle = `hsl(${185 + (i / barCount) * 130}, 90%, 60%)`;
     ctx.beginPath();
@@ -116,10 +288,21 @@ function drawMixer(t) {
   }
 
   // Title Banner
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '800 32px Inter, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('CANVAS 2D MULTI-TRACK MIXER • 1080P 60FPS', W / 2, H - 48);
+  const title = entry ? textElement(entry.scene, 'title') : null;
+  const bannerColor = title && typeof title.color === 'string' && title.color
+    ? title.color
+    : '#ffffff';
+  const bannerSize = title && Number.isFinite(title.fontSize)
+    ? title.fontSize
+    : 32;
+  ctx.fillStyle = bannerColor;
+  ctx.font = `800 ${bannerSize}px Inter, sans-serif`;
+  ctx.textAlign = title && title.align ? title.align : 'center';
+  ctx.fillText(
+    (title && title.text) || 'CANVAS 2D MULTI-TRACK MIXER • 1080P 60FPS',
+    W / 2,
+    H - 48
+  );
   ctx.textAlign = 'left';
 }
 

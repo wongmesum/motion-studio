@@ -72,9 +72,103 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const W = 1920, H = 1080;
 
+// ---- Motion Studio project data. Absent for legacy /render payloads, so every value
+// below falls back to the hardcoded demo content this template shipped with. ----
+const PROJECT = (function () {
+  const node = document.getElementById('motion-project-data');
+  if (!node) return null;
+  try { return JSON.parse(node.textContent); } catch (error) { return null; }
+})();
+function projectScenes() {
+  return PROJECT && Array.isArray(PROJECT.scenes) ? PROJECT.scenes : [];
+}
+function sceneText(scene, role, fallback) {
+  if (!scene || !Array.isArray(scene.elements)) return fallback;
+  const match = scene.elements.find(function (element) {
+    return element.type === 'text' && element.role === role;
+  });
+  return match && typeof match.text === 'string' ? match.text : fallback;
+}
+function sceneElement(scene, role) {
+  if (!scene || !Array.isArray(scene.elements)) return null;
+  return scene.elements.find(function (element) {
+    return element.type === 'text' && element.role === role;
+  }) || null;
+}
+
+// The scene timeline owns the video length. Offsets are cumulative `durationSec` values;
+// nothing here reads a wall clock, so every frame is a pure function of `time`.
+const TIMELINE = (function () {
+  const scenes = projectScenes();
+  if (!scenes.length) return null;
+  let offset = 0;
+  return scenes.map(function (scene) {
+    const durationSec = Number(scene.durationSec) > 0 ? Number(scene.durationSec) : 4;
+    const entry = { scene: scene, start: offset, durationSec: durationSec };
+    offset += durationSec;
+    return entry;
+  });
+})();
+const TOTAL_DURATION = TIMELINE
+  ? TIMELINE.reduce(function (total, entry) { return total + entry.durationSec; }, 0)
+  : 10;
+
+function sceneAt(time) {
+  if (!TIMELINE) return null;
+  const clamped = Math.max(0, Math.min(TOTAL_DURATION - 0.0001, time));
+  for (let i = 0; i < TIMELINE.length; i++) {
+    const entry = TIMELINE[i];
+    // The last scene owns the final instant instead of falling through to undefined.
+    if (clamped < entry.start + entry.durationSec || i === TIMELINE.length - 1) {
+      return {
+        scene: entry.scene,
+        index: i,
+        localT: Math.max(0, clamped - entry.start),
+        durationSec: entry.durationSec,
+      };
+    }
+  }
+  return null;
+}
+
+function transitionState(scene, localT) {
+  const transition = scene.transition || {};
+  const type = transition.type || 'fade';
+  const windowSec = Math.min(
+    Number(transition.durationSec) > 0 ? Number(transition.durationSec) : 0.5,
+    (Number(scene.durationSec) > 0 ? Number(scene.durationSec) : 4) / 2
+  );
+  const p = windowSec > 0 ? Math.min(1, localT / windowSec) : 1;
+  if (type === 'none') return { alpha: 1, x: 0 };
+  if (type === 'slide') return { alpha: p, x: (1 - p) * 180 };
+  return { alpha: p, x: 0 };
+}
+
+function applyTextProperties(node, element, fallback) {
+  node.textContent = element && typeof element.text === 'string' ? element.text : fallback;
+  if (!element) return;
+  if (Number.isFinite(element.fontSize)) node.style.fontSize = element.fontSize + 'px';
+  if (typeof element.color === 'string' && element.color) {
+    node.style.color = element.color;
+    node.style.webkitTextFillColor = element.color;
+    node.style.backgroundImage = 'none';
+  }
+  if (typeof element.align === 'string') node.style.textAlign = element.align;
+}
+
+window.__ASSETS_READY__ = Promise.resolve();
+window.__AWAIT_FRAME__ = function () { return null; };
+
 // Easing Helpers
 const easeOutExpo = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+function syncSceneText(scene) {
+  applyTextProperties(document.getElementById('badge'), sceneElement(scene, 'caption'), 'RENDER PIPELINE 1080P 60FPS');
+  applyTextProperties(document.getElementById('title'), sceneElement(scene, 'title'), 'MOTION STUDIO');
+  applyTextProperties(document.getElementById('subtitle'), sceneElement(scene, 'subtitle'), 'Playwright • GSAP • Canvas 2D • Sharp • FFmpeg');
+}
+syncSceneText(projectScenes()[0]);
 
 // GSAP Deterministic Timeline (Paused)
 let tl = null;
@@ -93,11 +187,26 @@ window.renderFrame = function(time) {
 };
 
 function drawFrame(time) {
+  const active = sceneAt(time);
+  const localT = active ? active.localT : time;
+  const overlay = document.querySelector('.overlay');
+
+  if (active) {
+    syncSceneText(active.scene);
+    const state = transitionState(active.scene, localT);
+    overlay.style.opacity = String(state.alpha);
+    overlay.style.transform = 'translateX(' + state.x + 'px)';
+  } else {
+    overlay.style.opacity = '1';
+    overlay.style.transform = 'none';
+  }
+
   if (tl) {
-    tl.seek(time % 10);
+    // Legacy demo keeps its ten second loop; project scenes seek by their own local time.
+    tl.seek(active ? localT : time % TOTAL_DURATION);
   } else {
     // Fallback jika CDN GSAP offline
-    const p = easeOutExpo(Math.min(1, time / 1.0));
+    const p = easeOutExpo(Math.min(1, localT / 1.0));
     document.getElementById('title').style.opacity = String(p);
     document.getElementById('title').style.transform = `translateY(${(1 - p) * 60}px)`;
   }
@@ -144,8 +253,8 @@ function drawFrame(time) {
     ctx.fill();
   }
 
-  // Progress bar tipis di bagian bawah
-  const progress = (time % 10) / 10;
+  // Progress bar tipis di bagian bawah, mengikuti total durasi timeline
+  const progress = TOTAL_DURATION > 0 ? Math.min(1, time / TOTAL_DURATION) : 0;
   ctx.fillStyle = 'rgba(56, 189, 248, 0.75)';
   ctx.fillRect(0, H - 6, W * easeInOutCubic(progress), 6);
 }

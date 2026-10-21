@@ -120,6 +120,123 @@ const canvas = document.getElementById('cityCanvas');
 const ctx = canvas.getContext('2d');
 const W = 1920, H = 1080;
 
+// ---- Motion Studio project data. Legacy renders keep hardcoded text. ----
+const PROJECT = (function () {
+  const node = document.getElementById('motion-project-data');
+  if (!node) return null;
+  try { return JSON.parse(node.textContent); } catch (error) { return null; }
+})();
+function projectScenes() {
+  return PROJECT && Array.isArray(PROJECT.scenes) ? PROJECT.scenes : [];
+}
+function sceneElement(scene, role) {
+  if (!scene || !Array.isArray(scene.elements)) return null;
+  return scene.elements.find(function (element) {
+    return element.type === 'text' && element.role === role;
+  }) || null;
+}
+
+// The scene timeline owns the video length. Offsets are cumulative `durationSec` values;
+// nothing here reads a wall clock, so every frame is a pure function of `time`.
+const TIMELINE = (function () {
+  const scenes = projectScenes();
+  if (!scenes.length) return null;
+  let offset = 0;
+  return scenes.map(function (scene) {
+    const durationSec = Number(scene.durationSec) > 0 ? Number(scene.durationSec) : 4;
+    const entry = { scene: scene, start: offset, durationSec: durationSec };
+    offset += durationSec;
+    return entry;
+  });
+})();
+const TOTAL_DURATION = TIMELINE
+  ? TIMELINE.reduce(function (total, entry) { return total + entry.durationSec; }, 0)
+  : 10;
+
+function entryAt(time) {
+  if (!TIMELINE) return null;
+  const clamped = Math.max(0, Math.min(TOTAL_DURATION - 0.0001, time));
+  for (let i = 0; i < TIMELINE.length; i++) {
+    const entry = TIMELINE[i];
+    // The last scene owns the final instant instead of falling through to undefined.
+    if (clamped < entry.start + entry.durationSec || i === TIMELINE.length - 1) {
+      return {
+        scene: entry.scene,
+        index: i,
+        localT: Math.max(0, clamped - entry.start),
+        durationSec: entry.durationSec,
+      };
+    }
+  }
+  return null;
+}
+
+function transitionState(scene, localT) {
+  const transition = scene.transition || {};
+  const type = transition.type || 'fade';
+  const windowSec = Math.min(
+    Number(transition.durationSec) > 0 ? Number(transition.durationSec) : 0.5,
+    (Number(scene.durationSec) > 0 ? Number(scene.durationSec) : 4) / 2
+  );
+  const p = windowSec > 0 ? Math.min(1, localT / windowSec) : 1;
+  if (type === 'none') return { alpha: 1, x: 0 };
+  if (type === 'slide') return { alpha: p, x: (1 - p) * 180 };
+  return { alpha: p, x: 0 };
+}
+
+// Every advertised text property lands here, so the inspector never writes a value the
+// template silently drops.
+function setTextProps(node, element) {
+  if (!element) return;
+  if (Number.isFinite(element.fontSize)) node.style.fontSize = element.fontSize + 'px';
+  if (typeof element.color === 'string' && element.color) node.style.color = element.color;
+  if (typeof element.align === 'string') node.style.textAlign = element.align;
+}
+
+function syncSceneText(scene) {
+  const caption = sceneElement(scene, 'caption');
+  const title = sceneElement(scene, 'title');
+  const subtitle = sceneElement(scene, 'subtitle');
+
+  const kicker = document.getElementById('kicker');
+  kicker.textContent = caption && typeof caption.text === 'string'
+    ? caption.text
+    : 'HIGGSFIELD × DEEPSEEK × PLAYWRIGHT';
+  setTextProps(kicker, caption);
+
+  const titleText = title && typeof title.text === 'string' ? title.text : 'AI 2025';
+  const main = document.getElementById('titleMain');
+  const cyan = document.getElementById('titleCyan');
+  const magenta = document.getElementById('titleMagenta');
+  main.textContent = titleText;
+  cyan.textContent = titleText;
+  magenta.textContent = titleText;
+  // The glitch layers clone the title but keep their neon blend colors, so only geometry
+  // and alignment follow the element; the palette follows the main title.
+  setTextProps(main, title);
+  if (Number.isFinite(title && title.fontSize)) {
+    cyan.style.fontSize = title.fontSize + 'px';
+    magenta.style.fontSize = title.fontSize + 'px';
+  }
+  if (title && typeof title.align === 'string') {
+    cyan.style.textAlign = title.align;
+    magenta.style.textAlign = title.align;
+  }
+  if (title && typeof title.color === 'string' && title.color) {
+    main.style.textShadow = 'none';
+  }
+
+  const subBar = document.getElementById('subBar');
+  subBar.textContent = subtitle && typeof subtitle.text === 'string'
+    ? subtitle.text
+    : 'FUTURISTIC NEON MOTION PIPELINE';
+  setTextProps(subBar, subtitle);
+}
+syncSceneText(projectScenes()[0]);
+
+window.__ASSETS_READY__ = Promise.resolve();
+window.__AWAIT_FRAME__ = function () { return null; };
+
 // Pseudo-random deterministik berbasis seed
 function seededRandom(seed) {
   const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
@@ -201,7 +318,7 @@ function drawFuturisticCity(t) {
   }
 }
 
-function updateDOM(t) {
+function updateDOM(t, state) {
   const mainEl = document.getElementById('titleMain');
   const cyanEl = document.getElementById('titleCyan');
   const magEl = document.getElementById('titleMagenta');
@@ -209,6 +326,11 @@ function updateDOM(t) {
   const kickerEl = document.getElementById('kicker');
   const subBarEl = document.getElementById('subBar');
   const tcEl = document.getElementById('timecode');
+  const stageEl = document.querySelector('.center-stage');
+
+  // Scene entry transition (fade / slide / none) moves the whole stage.
+  stageEl.style.opacity = String(state.alpha);
+  stageEl.style.transform = 'translateX(' + state.x + 'px)';
 
   // Fade in & scale pop
   const fade = Math.min(1, t / 0.8);
@@ -244,21 +366,28 @@ function updateDOM(t) {
   tcEl.textContent = `TC 00:00:${String(sec).padStart(2, '0')}:${String(frame).padStart(2, '0')}`;
 }
 
+function drawFrame(time) {
+  const active = entryAt(time);
+  const localT = active ? active.localT : time;
+  if (active) syncSceneText(active.scene);
+  const state = active ? transitionState(active.scene, localT) : { alpha: 1, x: 0 };
+
+  drawFuturisticCity(localT);
+  updateDOM(localT, state);
+}
+
 window.renderFrame = function(t) {
   window.__MANUAL_RENDER__ = true;
-  drawFuturisticCity(t);
-  updateDOM(t);
+  drawFrame(t);
 };
 
 // Auto-play jika dibuka langsung di browser
-drawFuturisticCity(0);
-updateDOM(0);
+drawFrame(0);
 let startTs = performance.now();
 function loop(now) {
   if (!window.__MANUAL_RENDER__) {
-    const t = ((now - startTs) / 1000) % 10;
-    drawFuturisticCity(t);
-    updateDOM(t);
+    const t = ((now - startTs) / 1000) % TOTAL_DURATION;
+    drawFrame(t);
     requestAnimationFrame(loop);
   }
 }

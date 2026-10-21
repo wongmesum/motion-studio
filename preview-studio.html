@@ -1,979 +1,137 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Motion Studio — Live 1080p 60fps Preview & Pipeline Simulator</title>
-<style>
-  :root {
-    --bg: #070913;
-    --panel: #0f1424;
-    --panel-border: rgba(148, 163, 184, 0.16);
-    --cyan: #38bdf8;
-    --purple: #a855f7;
-    --emerald: #34d399;
-    --text: #f1f5f9;
-    --muted: #94a3b8;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-  header {
-    padding: 16px 24px;
-    background: rgba(15, 20, 36, 0.9);
-    border-bottom: 1px solid var(--panel-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .brand-badge {
-    background: linear-gradient(135deg, var(--cyan), var(--purple));
-    color: #05070f;
-    font-weight: 900;
-    font-size: 13px;
-    padding: 5px 10px;
-    border-radius: 6px;
-    letter-spacing: 1px;
-  }
-  .brand h1 {
-    font-size: 18px;
-    font-weight: 800;
-    letter-spacing: -0.3px;
-  }
-  .stack-pills {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .pill {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: rgba(56, 189, 248, 0.1);
-    border: 1px solid rgba(56, 189, 248, 0.3);
-    color: var(--cyan);
-    font-weight: 600;
-  }
-  main {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 380px;
-    gap: 20px;
-    padding: 20px 24px;
-  }
-  @media (max-width: 1100px) {
-    main { grid-template-columns: 1fr; }
-  }
-  .studio-left {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .viewport-card {
-    background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: 14px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .template-tabs {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .tab-btn {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--panel-border);
-    color: var(--text);
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .tab-btn.active {
-    background: rgba(56, 189, 248, 0.18);
-    border-color: var(--cyan);
-    color: var(--cyan);
-  }
-  .canvas-wrapper {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    background: #04050a;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-  }
-  canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .controls-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(0, 0, 0, 0.28);
-    padding: 10px 14px;
-    border-radius: 10px;
-  }
-  .btn {
-    background: var(--cyan);
-    color: #040711;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .btn.secondary {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text);
-    border: 1px solid var(--panel-border);
-  }
-  .scrubber {
-    flex: 1;
-    accent-color: var(--cyan);
-    cursor: pointer;
-  }
-  .mono-stat {
-    font-family: monospace;
-    font-size: 13px;
-    color: var(--cyan);
-    min-width: 175px;
-    text-align: right;
-  }
-  .pillars-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
-  }
-  @media (max-width: 900px) {
-    .pillars-grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  .pillar-box {
-    background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: 10px;
-    padding: 12px;
-  }
-  .pillar-box h4 {
-    font-size: 11px;
-    color: var(--cyan);
-    letter-spacing: 0.8px;
-    margin-bottom: 6px;
-  }
-  .pillar-box p {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.45;
-  }
-  .studio-right {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .side-card {
-    background: var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: 14px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .side-card h3 {
-    font-size: 14px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .stage-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .stage-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 9px 12px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 12px;
-  }
-  .stage-item.done {
-    border-color: rgba(52, 211, 153, 0.45);
-    background: rgba(52, 211, 153, 0.08);
-  }
-  .stage-item.active {
-    border-color: var(--cyan);
-    background: rgba(56, 189, 248, 0.12);
-  }
-  .log-box {
-    background: #05070e;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 10px;
-    font-family: monospace;
-    font-size: 11.5px;
-    color: #a7f3d0;
-    height: 190px;
-    overflow-y: auto;
-    line-height: 1.5;
-  }
-  .render-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .form-field { display: flex; flex-direction: column; gap: 5px; }
-  .form-field.full { grid-column: 1 / -1; }
-  .form-field label { font-size: 11px; color: var(--muted); font-weight: 700; }
-  .form-field input, .form-field select {
-    width: 100%; padding: 9px 10px; border-radius: 7px; color: var(--text);
-    background: #080c18; border: 1px solid var(--panel-border);
-  }
-  .hint { color: var(--muted); font-size: 10px; line-height: 1.4; }
-  .progress-track { height: 9px; background: #05070e; border-radius: 999px; overflow: hidden; }
-  .progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--purple)); transition: width .2s; }
-  .render-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
-  .render-result { display: none; flex-direction: column; gap: 10px; }
-  .render-result.visible { display: flex; }
-  .render-result video { width: 100%; border-radius: 8px; background: #000; }
-  .header-session { display: flex; gap: 8px; align-items: center; }
-  .login-overlay {
-    position: fixed; inset: 0; z-index: 1000; display: none; place-items: center;
-    background: rgba(3, 5, 12, .88); backdrop-filter: blur(12px); padding: 20px;
-  }
-  .login-overlay.visible { display: grid; }
-  .login-card { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--panel-border); border-radius: 16px; padding: 24px; display: grid; gap: 14px; }
-  .login-card p, .login-error { color: var(--muted); font-size: 13px; line-height: 1.5; }
-  .login-error { color: #fb7185; min-height: 20px; }
-  @media (max-width: 520px) { .render-form { grid-template-columns: 1fr; } .form-field.full { grid-column: auto; } }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Motion Studio Builder</title>
+  <link rel="stylesheet" href="/api/studio/ui/style.css">
 </head>
 <body>
-
-<header>
-  <div class="brand">
-    <span class="brand-badge">LEVEL 4 STUDIO</span>
-    <h1>Motion Studio — ChatGPT MCP + Higgsfield + DeepSeek Engineer + VPS Render Farm</h1>
-  </div>
-  <div class="stack-pills">
-    <span class="pill">Playwright 1080p 60fps</span>
-    <span class="pill">Playwright + GSAP + Canvas 2D</span>
-    <span class="pill">FFmpeg x264 / x265 / AV1 / NVENC</span>
-    <span class="pill">DeepSeek 5-Stage Gate</span>
-    <span class="pill">Sharp + MinIO + BullMQ</span>
-  </div>
-  <div class="header-session">
-    <span class="pill" id="sessionState">Belum login</span>
-    <button class="btn secondary" id="logoutBtn" hidden>Logout</button>
-  </div>
-</header>
-
-<div class="login-overlay" id="loginOverlay">
-  <form class="login-card" id="loginForm">
-    <h2 style="font-size:16px;">Login Admin Studio</h2>
-    <p>Masukkan password admin. Satu session berlaku untuk Studio dan Admin Dashboard selama 8 jam.</p>
-    <div class="form-field">
-      <label for="adminPassword">Password admin</label>
-      <input type="password" id="adminPassword" autocomplete="current-password" required>
+  <a class="skip-link" href="#previewWorkspace">Lewati ke preview</a>
+  <header class="topbar">
+    <div class="brand" aria-label="Motion Studio">
+      <span class="brand-mark" aria-hidden="true">MS</span>
+      <div><strong>Motion Studio</strong><span>Video Builder</span></div>
     </div>
-    <button class="btn" type="submit" id="loginSubmitBtn">Masuk</button>
-    <div class="login-error" id="loginError" role="status" aria-live="polite"></div>
-  </form>
-</div>
+    <label class="project-title"><span class="sr-only">Judul project</span><input id="projectTitle" maxlength="120" value="Project baru"></label>
+    <div class="topbar-actions">
+      <span class="save-state" id="saveState" role="status">Draft lokal</span>
+      <button class="icon-btn" id="undoBtn" type="button" title="Urungkan (Ctrl+Z)" disabled aria-label="Urungkan"></button>
+      <button class="icon-btn" id="redoBtn" type="button" title="Ulangi (Ctrl+Shift+Z)" disabled aria-label="Ulangi"></button>
+      <button class="icon-btn" id="openLibraryBtn" type="button" title="Project tersimpan" aria-label="Buka project library"></button>
+      <button class="icon-btn" id="exportProjectBtn" type="button" title="Export JSON" aria-label="Export project JSON"></button>
+      <button class="icon-btn" id="importProjectBtn" type="button" title="Import JSON" aria-label="Import project JSON"></button>
+      <input id="importProjectInput" type="file" accept="application/json,.json" hidden>
+      <button class="btn btn-ghost" id="saveBtn" type="button">Simpan</button>
+      <button class="btn btn-primary" id="renderSubmitBtn" type="button">Render Video</button>
+      <span class="session-pill" id="sessionState">Belum login</span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button" hidden>Logout</button>
+    </div>
+  </header>
 
-<main>
-  <section class="studio-left">
-    <div class="viewport-card">
-      <div class="toolbar">
-        <div class="template-tabs">
-          <button class="tab-btn active" data-tpl="kinetic">1. Kinetic Glitch ("AI 2025")</button>
-          <button class="tab-btn" data-tpl="base">2. Base GSAP Orbs</button>
-          <button class="tab-btn" data-tpl="slideshow">3. Smooth Slideshow</button>
-          <button class="tab-btn" data-tpl="mixer">4. 3D & Video Mixer</button>
+  <div class="conflict-banner" id="conflictBanner" role="alert" hidden>
+    <span>Project ini berubah di tempat lain. Pilih versi yang ingin dipakai.</span>
+    <button class="btn btn-ghost btn-sm" id="loadServerBtn" type="button">Muat versi server</button>
+    <button class="btn btn-primary btn-sm" id="saveAsCopyBtn" type="button">Simpan sebagai salinan</button>
+  </div>
+
+  <main class="builder-shell">
+    <aside class="left-rail" aria-label="Prompt dan aset">
+      <section class="panel prompt-panel" aria-labelledby="promptHeading">
+        <div class="panel-heading"><div><span class="eyebrow">AI Director</span><h2 id="promptHeading">Mulai dari ide</h2></div><span class="step-badge">01</span></div>
+        <label for="promptInput" class="sr-only">Prompt video</label>
+        <textarea id="promptInput" maxlength="4000" rows="5" placeholder="Contoh: Buat video peluncuran kopi premium, 3 scene, nuansa hangat dan sinematik..."></textarea>
+        <div class="prompt-meta"><span id="promptCount">0 / 4000</span><label>Provider<select id="providerSelect"><option value="river">River AI</option><option value="deepseek">DeepSeek</option></select></label></div>
+        <button class="btn btn-primary btn-block" id="generateBtn" type="button">Buat Struktur Scene</button>
+        <div class="prompt-choice" id="promptChoice" hidden>
+          <span class="prompt-choice-copy">Struktur scene siap. Terapkan bagaimana?</span>
+          <div class="prompt-choice-actions">
+            <button class="btn btn-primary btn-sm" id="promptReplaceBtn" type="button">Ganti scene</button>
+            <button class="btn btn-ghost btn-sm" id="promptAppendBtn" type="button">Tambahkan scene</button>
+            <button class="btn btn-ghost btn-sm" id="promptCancelBtn" type="button">Batal</button>
+          </div>
         </div>
-        <button class="btn secondary" id="snapshotBtn">📸 Snapshot PNG (1920×1080)</button>
-      </div>
+      </section>
 
-      <div class="canvas-wrapper">
-        <canvas id="stageCanvas" width="1920" height="1080"></canvas>
-      </div>
+      <section class="panel assets-panel" aria-labelledby="assetsHeading">
+        <div class="panel-heading"><div><span class="eyebrow">Library</span><h2 id="assetsHeading">Aset project</h2></div><button class="icon-btn" id="refreshAssetsBtn" type="button" aria-label="Muat ulang aset"></button></div>
+        <input id="assetFileInput" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/mp4,audio/aac" multiple hidden>
+        <button class="drop-zone" id="assetDropZone" type="button"><strong>Tarik aset ke sini</strong><span>atau pilih file • PNG, JPG, WebP, MP4, WebM, audio</span></button>
+        <div class="asset-usage"><span id="assetUsage">0 aset</span><span>Maks. 500 MB</span></div>
+        <div class="asset-grid" id="assetGrid"><p class="empty-copy">Belum ada aset.</p></div>
+      </section>
+    </aside>
 
-      <div class="controls-bar">
-        <button class="btn" id="playPauseBtn">⏸ Pause</button>
-        <input type="range" class="scrubber" id="timeSlider" min="0" max="600" value="0" step="1">
-        <div class="mono-stat" id="frameReadout">Frame 000/600 | 0.00s</div>
+    <section class="workspace" id="previewWorkspace" aria-label="Workspace preview">
+      <div class="workspace-bar">
+        <div><span class="eyebrow">Canvas</span><h2>Preview project</h2></div>
+        <div class="viewport-controls"><label>Template<select id="templateSelect"></select></label><button class="icon-btn" id="refreshPreviewBtn" type="button" aria-label="Perbarui preview"></button></div>
       </div>
-    </div>
+      <div class="preview-shell">
+        <div class="preview-stage" id="previewStage">
+          <!-- Opaque origin isolates compiled HTML from the authenticated builder. -->
+          <iframe id="previewFrame" title="Preview video" sandbox="allow-scripts"></iframe>
+          <div class="preview-placeholder" id="previewPlaceholder"><span class="preview-orb"></span><strong>Scene siap disusun</strong><span>Tulis prompt atau tambah scene untuk memulai.</span></div>
+          <div class="preview-loading" id="previewLoading" hidden>Menyiapkan preview…</div>
+        </div>
+        <div class="transport">
+          <button class="icon-btn" id="previewPlayBtn" type="button" aria-label="Putar preview"></button>
+          <input id="previewTime" type="range" min="0" max="1000" value="0" aria-label="Posisi waktu preview">
+          <span id="previewTimeLabel">00:00 / 00:10</span>
+        </div>
+      </div>
+      <div class="workspace-status"><span id="previewStatus">Preview belum dibuat</span><span id="sceneSummary">0 scene • 0 elemen</span></div>
+    </section>
 
-    <div class="pillars-grid">
-      <div class="pillar-box">
-        <h4>[1] RENDER ENGINE</h4>
-        <p>Playwright + Chromium Headless Parallel Chunked Workers (--use-gl=swiftshader)</p>
-      </div>
-      <div class="pillar-box">
-        <h4>[2] COMPOSITOR</h4>
-        <p>FFmpeg Multi-Thread untuk komposisi frame sequence dan audio</p>
-      </div>
-      <div class="pillar-box">
-        <h4>[3] ENCODER</h4>
-        <p>libx264 (CRF 18), libx265 (HEVC), libsvtav1 (AV1), & NVIDIA h264_nvenc</p>
-      </div>
-      <div class="pillar-box">
-        <h4>[4] MOTION LAYER</h4>
-        <p>GSAP Timeline via CDN, Canvas 2D, deterministik renderFrame(t)</p>
-      </div>
-      <div class="pillar-box">
-        <h4>[5] ASSET & SECURITY</h4>
-        <p>Sharp Pipeline, Content-Addressable Cache, HMAC Auth, Rate Limit, Sanitizer</p>
-      </div>
-    </div>
+    <aside class="right-rail" aria-label="Inspector">
+      <section class="panel inspector-panel" aria-labelledby="inspectorHeading">
+        <div class="panel-heading"><div><span class="eyebrow">Properties</span><h2 id="inspectorHeading">Inspector</h2></div><span class="step-badge">02</span></div>
+        <div id="inspectorEmpty" class="inspector-empty"><strong>Pilih elemen</strong><span>Pilih kartu elemen pada timeline untuk mengubah teks, posisi, warna, atau aset.</span></div>
+        <form id="inspectorForm" hidden></form>
+      </section>
+      <section class="panel render-panel" aria-labelledby="renderHeading">
+        <div class="panel-heading"><div><span class="eyebrow">Output</span><h2 id="renderHeading">Pengaturan render</h2></div><span class="status-dot" id="renderStatus">Siap</span></div>
+        <div class="render-settings">
+          <label>Durasi (total scene)<input id="renderDuration" type="text" value="0" readonly aria-readonly="true" title="Mengikuti total durasi scene"></label>
+          <label>FPS<select id="renderFps"><option>24</option><option selected>30</option><option>60</option></select></label>
+          <label>Resolusi<select id="renderResolution"><option value="854x480">854×480</option><option value="1280x720" selected>1280×720</option><option value="1920x1080">1920×1080</option></select></label>
+          <label>Codec<select id="renderCodec"><option value="h264">H.264</option><option value="h265">H.265</option><option value="av1">AV1</option></select></label>
+        </div>
+        <label class="toggle"><input id="useAiHtml" type="checkbox"><span>Poles HTML dengan AI</span></label>
+        <div class="progress-track"><span id="renderProgress"></span></div>
+        <div class="render-meta"><span id="renderJobId">Belum ada job</span><span id="renderProgressText">0%</span></div>
+        <div class="render-result" id="renderResult" hidden><video id="renderVideo" controls preload="metadata"></video><a class="btn btn-primary btn-block" id="downloadVideo" href="#">Unduh Video</a></div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="timeline-panel" aria-labelledby="timelineHeading">
+    <div class="timeline-heading"><div><span class="eyebrow">Storyline</span><h2 id="timelineHeading">Timeline scene</h2></div><div><button class="btn btn-ghost btn-sm" id="addSceneBtn" type="button">+ Tambah Scene</button></div></div>
+    <div class="timeline" id="timeline"><div class="timeline-empty"><strong>Timeline kosong</strong><span>Generate struktur atau tambah scene manual.</span></div></div>
   </section>
 
-  <aside class="studio-right">
-    <div class="side-card">
-      <h3><span>Render Video</span><span class="pill" id="renderStatus">Siap</span></h3>
-      <form class="render-form" id="renderForm">
-        <div class="form-field full">
-          <label for="renderTemplate">Template</label>
-          <select id="renderTemplate" required></select>
-        </div>
-        <div class="form-field">
-          <label for="renderDuration">Durasi (detik)</label>
-          <input type="number" id="renderDuration" min="1" max="60" value="10" required>
-        </div>
-        <div class="form-field">
-          <label for="renderFps">FPS</label>
-          <select id="renderFps"><option>15</option><option>24</option><option>30</option><option selected>60</option></select>
-        </div>
-        <div class="form-field">
-          <label for="renderResolution">Resolusi</label>
-          <select id="renderResolution">
-            <option value="854x480">854×480</option><option value="1280x720">1280×720</option>
-            <option value="1920x1080" selected>1920×1080</option><option value="3840x2160">3840×2160</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label for="renderCodec">Codec</label>
-          <select id="renderCodec">
-            <option value="h264" selected>H.264</option><option value="h265">H.265</option>
-            <option value="av1">AV1</option><option value="nvenc">NVENC (butuh GPU)</option>
-          </select>
-        </div>
-        <div class="form-field full">
-          <label for="renderAudioUrl">Audio URL (opsional)</label>
-          <input type="url" id="renderAudioUrl" placeholder="https://cdn.jsdelivr.net/audio/example.mp3">
-          <span class="hint">HTTPS, host dalam RENDER_ALLOWED_HOSTS, format MP3/WAV/M4A/AAC.</span>
-        </div>
-        <button class="btn form-field full" id="renderSubmitBtn" type="submit">Render Video</button>
-      </form>
-      <div class="progress-track" aria-label="Progress render"><div class="progress-fill" id="renderProgress"></div></div>
-      <div class="render-meta"><span id="renderJobId">Belum ada job</span><span id="renderProgressText">0%</span></div>
-      <div class="render-result" id="renderResult">
-        <video id="renderVideo" controls preload="metadata"></video>
-        <a class="btn" id="downloadVideo" href="#">Unduh MP4</a>
+  <div class="login-overlay" id="libraryOverlay" role="dialog" aria-modal="true" aria-labelledby="libraryHeading">
+    <div class="login-card library-card">
+      <div class="panel-heading">
+        <div><span class="eyebrow">Library</span><h2 id="libraryHeading">Project tersimpan</h2></div>
+        <button class="icon-btn" id="libraryCloseBtn" type="button" aria-label="Tutup library"></button>
       </div>
+      <p id="libraryStatus" role="status" aria-live="polite"></p>
+      <div class="library-list" id="libraryList"></div>
+      <button class="btn btn-primary btn-block" id="libraryNewBtn" type="button">+ Project baru</button>
     </div>
+  </div>
 
-    <div class="side-card">
-      <h3>
-        <span>🔧 DeepSeek 5-Stage Render Gate</span>
-      </h3>
-      <div class="stage-list" id="stageList">
-        <div class="stage-item done" data-stage="0"><span>1. MCP Higgsfield Asset Gen</span><span>✅ Ready</span></div>
-        <div class="stage-item done" data-stage="1"><span>2. DeepSeek Stage 1: Validate</span><span>✅ Valid</span></div>
-        <div class="stage-item done" data-stage="2"><span>3. DeepSeek Stage 2: Optimize</span><span>✅ Inlined</span></div>
-        <div class="stage-item done" data-stage="3"><span>4. DeepSeek Stage 3: 3-Frame Dry Run</span><span>✅ Passed</span></div>
-        <div class="stage-item done" data-stage="4"><span>5. DeepSeek Stage 5: Approve SHA-256</span><span>✅ Locked</span></div>
-        <div class="stage-item done" data-stage="5"><span>6. VPS Parallel Playwright + FFmpeg</span><span>✅ 1080p MP4</span></div>
-      </div>
-    </div>
-
-    <div class="side-card">
-      <h3><span>📟 Live Pipeline Telemetry Log</span></h3>
-      <div class="log-box" id="logBox"></div>
-    </div>
-  </aside>
-</main>
-
-<script>
-const canvas = document.getElementById('stageCanvas');
-const ctx = canvas.getContext('2d');
-const W = 1920, H = 1080;
-
-let activeTemplate = 'kinetic';
-let isPlaying = true;
-let currentFrame = 0;
-const FPS = 60;
-const TOTAL_FRAMES = 600; // 10 detik @ 60fps
-
-const slider = document.getElementById('timeSlider');
-const readout = document.getElementById('frameReadout');
-const playPauseBtn = document.getElementById('playPauseBtn');
-const logBox = document.getElementById('logBox');
-
-function appendLog(msg) {
-  const ts = new Date().toISOString().slice(11, 19);
-  const div = document.createElement('div');
-  div.textContent = `[${ts}] ${msg}`;
-  logBox.appendChild(div);
-  logBox.scrollTop = logBox.scrollHeight;
-}
-
-function seededRandom(seed) {
-  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-const buildings = Array.from({ length: 40 }, (_, i) => ({
-  x: i * 50 - 20,
-  w: 38 + Math.floor(seededRandom(i + 1) * 32),
-  h: 200 + Math.floor(seededRandom(i + 10) * 420),
-  hue: seededRandom(i + 20) > 0.5 ? 188 : 312,
-}));
-
-// 1. KINETIC GLITCH ("AI 2025")
-function renderKinetic(t) {
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#04040c');
-  sky.addColorStop(0.55, '#120829');
-  sky.addColorStop(1, '#240b36');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
-
-  const horizonY = H * 0.76;
-  buildings.forEach((b, idx) => {
-    const px = ((b.x - t * 20 * (idx % 2 === 0 ? 0.6 : 1)) % (W + 100) + (W + 100)) % (W + 100) - 50;
-    ctx.fillStyle = '#070714';
-    ctx.fillRect(px, horizonY - b.h, b.w, b.h + 250);
-    ctx.strokeStyle = `hsla(${b.hue}, 100%, 60%, 0.4)`;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(px, horizonY - b.h, b.w, b.h);
-  });
-
-  // Grid bawah
-  ctx.fillStyle = '#060410';
-  ctx.fillRect(0, horizonY, W, H - horizonY);
-  ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
-  ctx.lineWidth = 2;
-  for (let i = -18; i <= 18; i++) {
-    ctx.beginPath();
-    ctx.moveTo(W / 2 + i * 38, horizonY);
-    ctx.lineTo(W / 2 + i * 210, H);
-    ctx.stroke();
-  }
-
-  // Glitch Title
-  const scale = 1 + Math.sin(t * 3) * 0.035;
-  ctx.save();
-  ctx.translate(W / 2, H / 2 - 20);
-  ctx.scale(scale, scale);
-  ctx.textAlign = 'center';
-
-  ctx.font = '800 28px Inter, sans-serif';
-  ctx.fillStyle = '#38bdf8';
-  ctx.fillText('HIGGSFIELD × DEEPSEEK × PLAYWRIGHT', 0, -140);
-
-  const glitch = t > 1.0 && (Math.sin(t * 17) > 0.62 || Math.cos(t * 29) > 0.78);
-  ctx.font = '900 175px Inter, sans-serif';
-  if (glitch) {
-    const ox = (seededRandom(Math.floor(t * 60)) - 0.5) * 32;
-    ctx.fillStyle = 'rgba(0, 240, 255, 0.8)';
-    ctx.fillText('AI 2025', ox, -6);
-    ctx.fillStyle = 'rgba(255, 0, 160, 0.8)';
-    ctx.fillText('AI 2025', -ox, 6);
-  }
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('AI 2025', 0, 0);
-
-  ctx.font = '700 28px monospace';
-  ctx.fillStyle = '#e2e8f0';
-  ctx.fillText('FUTURISTIC NEON MOTION PIPELINE • 1080P 60FPS', 0, 95);
-  ctx.restore();
-}
-
-// 2. BASE GSAP ORBS
-function renderBase(t) {
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, '#070712');
-  g.addColorStop(1, '#1e113a');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-
-  for (let i = 0; i < 6; i++) {
-    const phase = t * 0.8 + i * 1.05;
-    const x = W / 2 + Math.cos(phase) * (440 + i * 35);
-    const y = H / 2 + Math.sin(phase * 1.3) * (250 + i * 20);
-    const r = 180 + Math.sin(phase * 2) * 55;
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, `hsla(${(i * 58 + t * 30) % 360}, 85%, 62%, 0.48)`);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#38bdf8';
-  ctx.font = '700 26px Inter, sans-serif';
-  ctx.fillText('DETERMINISTIC FRAME ENGINE', W / 2, H / 2 - 110);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '900 116px Inter, sans-serif';
-  ctx.fillText('MOTION STUDIO', W / 2, H / 2 + 10);
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '500 36px Inter, sans-serif';
-  ctx.fillText('Playwright • GSAP • Canvas 2D • Sharp • FFmpeg', W / 2, H / 2 + 85);
-}
-
-// 3. SMOOTH SLIDESHOW
-function renderSlideshow(t) {
-  const slides = [
-    { title: '01 / HIGGSFIELD AI ASSET GENERATOR', sub: 'Generate 1080p/4K images & videos via ChatGPT MCP', c1: '#0f172a', c2: '#1d4ed8', acc: '#38bdf8' },
-    { title: '02 / DEEPSEEK 5-STAGE ENGINEER', sub: 'Validate → Optimize → 3-Frame Dry Run → Fix → Approve', c1: '#1e1b4b', c2: '#6d28d9', acc: '#c084fc' },
-    { title: '03 / VPS PARALLEL RENDER FARM', sub: 'Multi-core Chromium + FFmpeg H.264 / HEVC / SVT-AV1', c1: '#064e3b', c2: '#047857', acc: '#34d399' },
-  ];
-  const dur = 10 / slides.length;
-  const idx = Math.min(slides.length - 1, Math.floor((t % 10) / dur));
-  const localT = ((t % 10) - idx * dur) / dur;
-  const s = slides[idx];
-
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, s.c1);
-  g.addColorStop(1, s.c2);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-
-  for (let i = 0; i < 4; i++) {
-    const cx = 380 + i * 380;
-    const cy = H / 2 - 30 + Math.sin(localT * 2.5 + i) * 40;
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    ctx.strokeStyle = s.acc;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(cx - 140, cy - 190, 280, 380, 22);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = 'rgba(9, 13, 22, 0.86)';
-  ctx.beginPath();
-  ctx.roundRect(110, H - 220, 1340, 145, 16);
-  ctx.fill();
-  ctx.fillStyle = s.acc;
-  ctx.fillRect(110, H - 220, 10, 145);
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '800 44px Inter, sans-serif';
-  ctx.fillText(s.title, 150, H - 155);
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '500 28px Inter, sans-serif';
-  ctx.fillText(s.sub, 150, H - 105);
-}
-
-// 4. 3D & VIDEO MIXER
-function renderMixer(t) {
-  ctx.fillStyle = '#05070f';
-  ctx.fillRect(0, 0, W, H);
-
-  const cx = W / 2, cy = H / 2 - 40;
-  for (let ring = 0; ring < 12; ring++) {
-    const depth = ((ring - (t * 2.0) % 1 + 12) % 12) / 12;
-    if (depth <= 0.03) continue;
-    const r = Math.pow(depth, 1.7) * 900;
-    ctx.strokeStyle = `hsla(${190 + ring * 9}, 95%, 60%, ${Math.sin(depth * Math.PI) * 0.45})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let s = 0; s <= 6; s++) {
-      const a = (s / 6) * Math.PI * 2 + t * 0.35;
-      const px = cx + Math.cos(a) * r;
-      const py = cy + Math.sin(a) * r * 0.6;
-      if (s === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.stroke();
-  }
-
-  // Spectrum bars
-  const bars = 44;
-  for (let i = 0; i < bars; i++) {
-    const v = Math.abs(Math.sin(i * 0.35 + t * 6.5) * Math.cos(i * 0.15 - t * 4));
-    const bh = 20 + v * 140;
-    ctx.fillStyle = `hsl(${185 + (i / bars) * 130}, 90%, 60%)`;
-    ctx.fillRect(260 + i * 32, H - 110 - bh, 22, bh);
-  }
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '800 36px Inter, sans-serif';
-  ctx.fillText('CANVAS 2D VIDEO MIXER • 1080P 60FPS', W / 2, H - 45);
-}
-
-window.renderFrame = function(t) {
-  if (activeTemplate === 'kinetic') renderKinetic(t);
-  else if (activeTemplate === 'base') renderBase(t);
-  else if (activeTemplate === 'slideshow') renderSlideshow(t);
-  else renderMixer(t);
-};
-
-function updateUI() {
-  const t = currentFrame / FPS;
-  window.renderFrame(t);
-  slider.value = String(currentFrame);
-  readout.textContent = `Frame ${String(currentFrame).padStart(3, '0')}/${TOTAL_FRAMES} | ${t.toFixed(2)}s`;
-}
-
-// Animation Loop
-let lastTick = performance.now();
-function tick(now) {
-  if (isPlaying && now - lastTick >= 1000 / FPS) {
-    currentFrame = (currentFrame + 1) % (TOTAL_FRAMES + 1);
-    updateUI();
-    lastTick = now;
-  }
-  requestAnimationFrame(tick);
-}
-requestAnimationFrame(tick);
-
-// ============================================================
-// ADMIN SESSION (password login, cookie-backed, CSRF in memory only)
-// ============================================================
-const loginOverlay = document.getElementById('loginOverlay');
-const loginForm = document.getElementById('loginForm');
-const loginError = document.getElementById('loginError');
-const loginSubmitBtn = document.getElementById('loginSubmitBtn');
-const logoutBtn = document.getElementById('logoutBtn');
-const sessionState = document.getElementById('sessionState');
-
-// Held in memory for the lifetime of the page. Never persisted to web storage.
-let csrfToken = '';
-
-function showLogin(message = '') {
-  csrfToken = '';
-  loginOverlay.classList.add('visible');
-  logoutBtn.hidden = true;
-  sessionState.textContent = 'Belum login';
-  loginError.textContent = message;
-}
-
-function showSession(actor) {
-  loginOverlay.classList.remove('visible');
-  logoutBtn.hidden = false;
-  sessionState.textContent = actor ? `Login: ${actor}` : 'Login aktif';
-  loginError.textContent = '';
-}
-
-async function loadSession() {
-  const response = await fetch('/api/session', { credentials: 'same-origin' });
-  if (response.status === 401) {
-    showLogin();
-    return false;
-  }
-  if (!response.ok) {
-    showLogin('Layanan sesi sedang tidak tersedia.');
-    return false;
-  }
-  const session = await response.json();
-  csrfToken = session.csrfToken || '';
-  showSession(session.actor);
-  return true;
-}
-
-loginForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  loginSubmitBtn.disabled = true;
-  loginError.textContent = '';
-  try {
-    const response = await fetch('/api/session/login', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: document.getElementById('adminPassword').value }),
-    });
-    if (!response.ok) {
-      showLogin(response.status === 429
-        ? 'Terlalu banyak percobaan. Coba lagi nanti.'
-        : 'Password tidak valid.');
-      return;
-    }
-    const session = await response.json();
-    csrfToken = session.csrfToken || '';
-    document.getElementById('adminPassword').value = '';
-    showSession(session.actor);
-    appendLog('Login admin berhasil.');
-    loadTemplates();
-  } finally {
-    loginSubmitBtn.disabled = false;
-  }
-});
-
-logoutBtn.addEventListener('click', async () => {
-  stopPolling();
-  await fetch('/api/session/logout', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'X-CSRF-Token': csrfToken },
-  }).catch(() => {});
-  showLogin();
-  appendLog('Logout. Session admin dihapus.');
-});
-
-// ============================================================
-// RENDER PANEL
-// ============================================================
-const renderForm = document.getElementById('renderForm');
-const renderTemplate = document.getElementById('renderTemplate');
-const renderSubmitBtn = document.getElementById('renderSubmitBtn');
-const renderStatus = document.getElementById('renderStatus');
-const renderProgress = document.getElementById('renderProgress');
-const renderProgressText = document.getElementById('renderProgressText');
-const renderJobId = document.getElementById('renderJobId');
-const renderResult = document.getElementById('renderResult');
-const renderVideo = document.getElementById('renderVideo');
-const downloadVideo = document.getElementById('downloadVideo');
-const TEMPLATE_PREVIEW_MAP = {
-  'kinetic-text': 'kinetic',
-  base: 'base',
-  'image-slideshow': 'slideshow',
-  'video-mixer': 'mixer',
-};
-const PREVIEW_TEMPLATE_MAP = Object.fromEntries(
-  Object.entries(TEMPLATE_PREVIEW_MAP).map(([templateId, previewId]) => [previewId, templateId])
-);
-
-let pollTimer = null;
-let activeJobId = '';
-
-function stopPolling() {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = null;
-}
-
-function setProgress(percent) {
-  const value = Math.max(0, Math.min(100, Math.round(percent)));
-  renderProgress.style.width = `${value}%`;
-  renderProgressText.textContent = `${value}%`;
-}
-
-// BullMQ stores the whole renderer progress object (progress/status/renderedFrames);
-// the in-memory queue exposes the same object on its record. Accept a bare number too.
-function describeJob(job) {
-  const raw = job.progress;
-  const progressRecord = typeof raw === 'object' && raw !== null ? raw : {};
-  const percent = typeof raw === 'number' ? raw : Number(progressRecord.progress ?? 0);
-  const renderedFrames = progressRecord.renderedFrames;
-  const totalFrames = progressRecord.totalFrames;
-  const suffix = renderedFrames ? ` (${renderedFrames}/${totalFrames} frame)` : '';
-  const labels = {
-    queued: 'Dalam antrean',
-    waiting: 'Menunggu worker',
-    waiting_children: 'Menunggu worker',
-    delayed: 'Dalam antrean',
-    active: 'Sedang dirender',
-    processing: 'Sedang dirender',
-    completed: 'Selesai',
-    failed: 'Gagal',
-  };
-  return {
-    percent,
-    label: String(labels[job.status] || job.status) + suffix,
-    terminal: job.status === 'completed' || job.status === 'failed',
-  };
-}
-
-// Local Studio output is served by our own route, so we control the query string.
-// Signed object-storage URLs (AWS/MinIO) carry the signature in the query — appending
-// anything there breaks the signature, so those are used verbatim.
-function getDownloadUrl(url) {
-  if (url.startsWith('/api/studio/output/')) {
-    return url.includes('?') ? `${url}&download=1` : `${url}?download=1`;
-  }
-  return url;
-}
-
-async function pollJob(jobId) {
-  const response = await fetch(`/api/studio/jobs/${encodeURIComponent(jobId)}`, {
-    credentials: 'same-origin',
-  });
-  if (response.status === 401) {
-    stopPolling();
-    showLogin('Sesi berakhir. Silakan login lagi.');
-    return;
-  }
-  if (!response.ok) {
-    renderStatus.textContent = 'Status tidak tersedia';
-    return;
-  }
-  const job = await response.json();
-  const described = describeJob(job);
-  setProgress(described.percent);
-  renderStatus.textContent = described.label;
-
-  if (!described.terminal) return;
-  stopPolling();
-  renderSubmitBtn.disabled = false;
-
-  if (job.status === 'failed') {
-    appendLog(`Render gagal: ${job.error || 'tanpa detail'}`);
-    return;
-  }
-  if (job.result?.url) {
-    renderVideo.src = job.result.url;
-    downloadVideo.href = getDownloadUrl(job.result.url);
-    renderResult.classList.add('visible');
-    appendLog(`Render selesai: ${job.result.url}`);
-  }
-}
-
-renderForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  stopPolling();
-  renderSubmitBtn.disabled = true;
-  renderResult.classList.remove('visible');
-  renderVideo.removeAttribute('src');
-  setProgress(0);
-  renderStatus.textContent = 'Mengirim...';
-
-  const [width, height] = document.getElementById('renderResolution').value.split('x').map(Number);
-  const audioUrl = document.getElementById('renderAudioUrl').value.trim();
-  const payload = {
-    template: renderTemplate.value,
-    duration: Number(document.getElementById('renderDuration').value),
-    fps: Number(document.getElementById('renderFps').value),
-    width,
-    height,
-    codec: document.getElementById('renderCodec').value,
-  };
-  if (audioUrl) payload.audio_url = audioUrl;
-
-  try {
-    const response = await fetch('/api/studio/render', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-      body: JSON.stringify(payload),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (response.status === 401) {
-      showLogin('Sesi berakhir. Silakan login lagi.');
-      return;
-    }
-    if (!response.ok) {
-      renderStatus.textContent = 'Gagal dikirim';
-      appendLog(`Render ditolak: ${body.error || response.status}`);
-      renderSubmitBtn.disabled = false;
-      return;
-    }
-    activeJobId = body.job_id;
-    renderJobId.textContent = `Job ${activeJobId}`;
-    appendLog(`Job dikirim: ${activeJobId}`);
-    pollTimer = setInterval(() => pollJob(activeJobId), 1000);
-    pollJob(activeJobId);
-  } catch (error) {
-    renderStatus.textContent = 'Gagal dikirim';
-    appendLog(`Render gagal dikirim: ${error.message}`);
-    renderSubmitBtn.disabled = false;
-  }
-});
-
-function selectPreviewTemplate(previewId) {
-  if (!previewId) return;
-  activeTemplate = previewId;
-  document.querySelectorAll('.tab-btn').forEach((button) => {
-    button.classList.toggle('active', button.dataset.tpl === previewId);
-  });
-  updateUI();
-}
-
-async function loadTemplates() {
-  const response = await fetch('/api/studio/templates', { credentials: 'same-origin' });
-  if (!response.ok) return;
-  const { templates } = await response.json();
-  renderTemplate.replaceChildren(...templates.map(({ id, label }) => {
-    const option = document.createElement('option');
-    option.value = id;
-    option.textContent = label;
-    return option;
-  }));
-  const matchingTemplate = PREVIEW_TEMPLATE_MAP[activeTemplate];
-  if (matchingTemplate && templates.some(({ id }) => id === matchingTemplate)) {
-    renderTemplate.value = matchingTemplate;
-  }
-}
-
-renderTemplate.addEventListener('change', () => {
-  const previewId = TEMPLATE_PREVIEW_MAP[renderTemplate.value];
-  selectPreviewTemplate(previewId);
-  if (previewId) appendLog(`Switched preview to ${renderTemplate.value}.html`);
-});
-
-// Event Listeners
-document.querySelectorAll('.tab-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    selectPreviewTemplate(btn.dataset.tpl);
-    const templateId = PREVIEW_TEMPLATE_MAP[activeTemplate];
-    if (templateId && [...renderTemplate.options].some((option) => option.value === templateId)) {
-      renderTemplate.value = templateId;
-    }
-    appendLog(`Switched preview to ${templateId || activeTemplate}.html`);
-  });
-});
-
-playPauseBtn.addEventListener('click', () => {
-  isPlaying = !isPlaying;
-  playPauseBtn.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
-});
-
-slider.addEventListener('input', (e) => {
-  isPlaying = false;
-  playPauseBtn.textContent = '▶ Play';
-  currentFrame = Number(e.target.value);
-  updateUI();
-});
-
-document.getElementById('snapshotBtn').addEventListener('click', () => {
-  const link = document.createElement('a');
-  link.download = `motion-${activeTemplate}-frame-${currentFrame}.png`;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
-  appendLog(`Exported 1920x1080 PNG frame #${currentFrame}`);
-});
-
-window.addEventListener('beforeunload', stopPolling);
-
-appendLog('Motion Studio Live Preview initialized (1920x1080 @ 60fps)');
-appendLog('Deterministic function window.renderFrame(t) active');
-loadSession().then((authenticated) => {
-  if (authenticated) loadTemplates();
-}).catch(() => showLogin('Layanan sesi sedang tidak tersedia.'));
-</script>
+  <div class="login-overlay visible" id="loginOverlay" role="dialog" aria-modal="true" aria-labelledby="loginHeading">
+    <form class="login-card" id="loginForm">
+      <span class="brand-mark" aria-hidden="true">MS</span><h2 id="loginHeading">Masuk ke Motion Studio</h2><p>Gunakan password admin. Session berlaku untuk Studio dan Dashboard.</p>
+      <label>Password admin<input type="password" id="adminPassword" autocomplete="current-password" required></label>
+      <button class="btn btn-primary btn-block" type="submit" id="loginSubmitBtn">Masuk</button>
+      <div class="form-error" id="loginError" role="status" aria-live="polite"></div>
+    </form>
+  </div>
+  <div class="toast-region" id="toastRegion" role="status" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="/api/studio/ui/main.js"></script>
 </body>
 </html>
