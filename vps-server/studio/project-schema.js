@@ -177,7 +177,7 @@ function normalizeTextElement(element, textBudget) {
     fontSize,
     color: normalizeColor(element.color, '#f1f5f9', 'teks'),
     align: normalizeEnum(element.align, 'left', ALIGNMENTS, 'Align'),
-    ...(normalizeMotion(element.motion) ? { motion: normalizeMotion(element.motion) } : {}),
+    ...(element.motion == null ? {} : { motion: normalizeMotion(element.motion) }),
   };
 }
 
