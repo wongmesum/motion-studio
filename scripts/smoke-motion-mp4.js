@@ -19,7 +19,7 @@ function command(file, args) {
 
 const project = {
   schemaVersion: 1, title: 'CI MP4 smoke', template: 'base',
-  render: { fps: 8, width: 640, height: 360, codec: 'h264' },
+  render: { fps: 8, width: 1920, height: 1080, codec: 'h264' },
   scenes: [{ durationSec: 1, transition: { type: 'none', durationSec: 0 }, elements: [
     { type: 'text', role: 'title', text: 'CI MOTION',
       motion: { preset: 'fade-in', startSec: 0, durationSec: 0.5 } }
@@ -36,7 +36,7 @@ try {
   await fs.writeFile(template, html);
   await command(process.execPath, [
     path.resolve('render.js'), '--template', template, '--duration', '1', '--fps', '8',
-    '--width', '640', '--height', '360', '--parallel', '1', '--quality', '65',
+    '--width', '1920', '--height', '1080', '--parallel', '1', '--quality', '65',
     '--preset', 'ultrafast', '--output', output, '--framesDir', path.join(dir, 'frames')
   ]);
   const info = await command('ffprobe', [
@@ -45,11 +45,11 @@ try {
     '-of', 'json', output
   ]);
   const stream = JSON.parse(info).streams?.[0];
-  if (stream?.codec_name !== 'h264' || stream?.width !== 640 || stream?.height !== 360
+  if (stream?.codec_name !== 'h264' || stream?.width !== 1920 || stream?.height !== 1080
     || Number(stream?.nb_frames) !== 8) {
     throw new Error('Unexpected MP4 stream: ' + JSON.stringify(stream));
   }
-  console.log('MP4 smoke successful: H264 640x360, 8 frames');
+  console.log('MP4 smoke successful: H264 1920x1080, 8 frames');
 } finally {
   await fs.rm(dir, { recursive: true, force: true });
 }
