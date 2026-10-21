@@ -2,7 +2,7 @@ name: Node tests
 on:
   pull_request:
   push:
-    branches: [main, feature/ai-motion-editor]
+    branches: [main]
 permissions:
   contents: read
 jobs:
@@ -17,5 +17,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get install -y ffmpeg
       - run: npm test
       - run: node scripts/smoke-motion-mp4.js
