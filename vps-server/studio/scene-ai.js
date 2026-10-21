@@ -50,6 +50,11 @@ function normalizePrompt(value) {
   return prompt;
 }
 
+/**
+ * Deliberately has no `model` option: the model picker in the prompt panel applies only to
+ * scene-structure generation. This path is the render-time HTML rewrite and keeps using the
+ * provider's configured default so a render never depends on a browser-side selection.
+ */
 export async function generateProjectHtml(project, {
   providerId,
   callChat = callAiChat,
@@ -87,6 +92,7 @@ with id "motion-project-data". Render all user text through textContent or canva
 
 export async function generateSceneDraft(promptInput, {
   providerId,
+  model,
   callChat = callAiChat,
   hasApiKey = (candidateProvider) => hasRiverApiKey(undefined, candidateProvider),
 } = {}) {
@@ -99,6 +105,9 @@ export async function generateSceneDraft(promptInput, {
   try {
     response = await callChat({
       providerId,
+      // Omitted model keeps the provider's configured default; the router has already
+      // checked any explicit id against the registry allowlist.
+      ...(model ? { model } : {}),
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: prompt },

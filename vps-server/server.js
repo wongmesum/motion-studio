@@ -47,6 +47,7 @@ import {
 } from './config-store.js';
 import { startCleanupScheduler } from './cleanup.js';
 import { logger, formatPrometheusMetrics } from './logger.js';
+import { createModelRegistry } from './ai/model-catalog.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const app = express();
@@ -54,6 +55,7 @@ export const app = express();
 // client for login rate limiting without trusting arbitrary forwarded headers directly.
 app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT || 3000);
+const modelRegistry = createModelRegistry();
 
 const configuredCorsOrigins = new Set(
   String(process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
@@ -327,6 +329,19 @@ app.post('/api/admin/river/test', adminAuth, requireAdminCsrf, async (req, res) 
     logger.warn('River compatibility test setup failed', { error: error.message });
     return res.status(400).json({ error: 'Konfigurasi River AI tidak valid' });
   }
+});
+
+/**
+ * Admin-triggered live refresh of the model catalog. Discovery is best-effort: a provider
+ * that has no `/models` endpoint (or refuses the request) simply contributes nothing, and
+ * the static catalog keeps serving. The response carries ids only — never the API key.
+ */
+app.post('/api/admin/ai/models/refresh', adminAuth, requireAdminCsrf, async (_req, res) => {
+  const discovered = {};
+  for (const providerId of ['river', 'deepseek']) {
+    discovered[providerId] = (await modelRegistry.discover(providerId)).map((id) => ({ id }));
+  }
+  res.json({ ok: true, discovered });
 });
 
 // Manajemen User (List, Create, Update, Rotate Token, Delete)

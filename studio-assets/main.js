@@ -303,8 +303,7 @@ saveAsCopyBtn.addEventListener('click', async () => {
 async function bootStudio() {
   if (booted) return;
   booted = true;
-  await Promise.all([loadTemplatesIntoSelect(), assetsPanel.init()]);
-  promptPanel.init();
+  await Promise.all([loadTemplatesIntoSelect(), assetsPanel.init(), promptPanel.init()]);
   restoreRecoveryDraft();
   const project = store.getProject();
   applyProjectToControls(project);

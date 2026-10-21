@@ -118,6 +118,36 @@ function createMockApi(state) {
     });
   });
 
+  app.get('/api/studio/models', (_req, res) => {
+    if (state.modelListUnavailable) {
+      return res.status(503).json({ error: 'Daftar model tidak tersedia' });
+    }
+    return res.json({
+      providers: [
+        {
+          id: 'river',
+          label: 'River AI',
+          configured: true,
+          defaultModel: 'river-default',
+          models: [
+            { id: 'river-default', label: 'River Default', source: 'default' },
+            { id: 'river-pro', label: 'River Pro', source: 'env' },
+          ],
+        },
+        {
+          id: 'deepseek',
+          label: 'DeepSeek Official',
+          configured: true,
+          defaultModel: 'deepseek-chat',
+          models: [
+            { id: 'deepseek-chat', label: 'DeepSeek Chat', source: 'default' },
+            { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner', source: 'discovery' },
+          ],
+        },
+      ],
+    });
+  });
+
   app.post('/api/studio/prompt', (req, res) => {
     state.promptRequests.push({ body: req.body, csrf: req.headers['x-csrf-token'] });
     const project = typeof state.promptProject === 'function'
@@ -1372,6 +1402,83 @@ test('render refuses to submit an empty timeline with an Indonesian message', as
   }
 });
 
+test('the model picker is populated per provider and sent with the prompt', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('modelSelect').options.length === 2,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    assert.equal(await page.locator('#providerSelect').inputValue(), 'river');
+    assert.equal(await page.locator('#modelSelect').inputValue(), 'river-default');
+
+    await page.selectOption('#providerSelect', 'deepseek');
+    await page.waitForFunction(
+      () => document.getElementById('modelSelect').value === 'deepseek-chat',
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.selectOption('#modelSelect', 'deepseek-reasoner');
+
+    await page.fill('#promptInput', 'Buat promo kopi');
+    await page.click('#generateBtn');
+    await page.waitForSelector('#promptChoice:not([hidden])', { timeout: PAGE_TIMEOUT_MS });
+
+    assert.equal(state.promptRequests.length, 1);
+    assert.equal(state.promptRequests[0].body.providerId, 'deepseek');
+    assert.equal(state.promptRequests[0].body.model, 'deepseek-reasoner');
+  } finally {
+    await stack.close();
+  }
+});
+
+test('the chosen provider and model survive a page reload', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { context, page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('modelSelect').options.length === 2,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.selectOption('#providerSelect', 'deepseek');
+    await page.selectOption('#modelSelect', 'deepseek-reasoner');
+
+    const reopened = await context.newPage();
+    await reopened.goto(`${baseUrl}${STUDIO_PATH}`, { waitUntil: 'domcontentloaded' });
+    await reopened.waitForFunction(
+      () => document.getElementById('modelSelect').options.length === 2,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+
+    assert.equal(await reopened.locator('#providerSelect').inputValue(), 'deepseek');
+    assert.equal(await reopened.locator('#modelSelect').inputValue(), 'deepseek-reasoner');
+  } finally {
+    await stack.close();
+  }
+});
+
+test('an unavailable model list falls back to built-in providers', async () => {
+  const state = createState({ authenticated: true, modelListUnavailable: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('modelSelect').options.length > 0,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.fill('#promptInput', 'Buat promo kopi');
+    await page.click('#generateBtn');
+    await page.waitForSelector('#promptChoice:not([hidden])', { timeout: PAGE_TIMEOUT_MS });
+
+    assert.equal(await page.locator('#providerSelect').inputValue(), 'river');
+    assert.equal(state.promptRequests[0].body.model, 'deepseek-ai/DeepSeek-V4.1-Flash');
+  } finally {
+    await stack.close();
+  }
+});
+
 test('browser storage never holds a token, CSRF value, or API key', async () => {
   const state = createState();
   const stack = await openStudio(state);
@@ -1395,7 +1502,10 @@ test('browser storage never holds a token, CSRF value, or API key', async () => 
     }));
 
     assert.deepEqual(Object.keys(stored.session), []);
-    assert.deepEqual(Object.keys(stored.local), ['motionStudio.project.v1']);
+    assert.deepEqual(
+      Object.keys(stored.local).sort(),
+      ['motionStudio.ai.model.v1', 'motionStudio.project.v1'].sort()
+    );
     assert.equal(stored.cookie, '');
 
     const serialized = JSON.stringify(stored).toLowerCase();

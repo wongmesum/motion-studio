@@ -40,8 +40,10 @@ import {
   verifyPreviewAssetRequest,
 } from './studio/preview-assets.js';
 import { normalizeProjectDraft } from './studio/project-schema.js';
+import { createModelRegistry } from './ai/model-catalog.js';
 
 const defaultProjectStore = createProjectStore();
+const defaultModelRegistry = createModelRegistry();
 const defaultAssetStore = createAssetStore();
 const defaultUploadLimiter = createFixedRateLimiter({
   maxRequests: Number(process.env.RATE_LIMIT_UPLOAD_PER_MIN || 10),
@@ -260,6 +262,7 @@ export function createStudioRouter({
   generateScene = generateSceneDraft,
   generateHtml = generateProjectHtml,
   testHtml = testRender,
+  modelRegistry = defaultModelRegistry,
   getPreviewSecret = async () => {
     const keys = await getServiceKeys();
     return keys.hmacSecret || '';
@@ -338,6 +341,16 @@ export function createStudioRouter({
     }
   });
 
+  router.get('/models', rateLimit, async (_req, res) => {
+    try {
+      const payload = await modelRegistry.listProviders();
+      return res.json(payload);
+    } catch (error) {
+      logger.warn('Model listing failed', { error: error.message });
+      return res.status(500).json({ error: 'Daftar model tidak dapat dimuat' });
+    }
+  });
+
   router.post('/render', rateLimit, requireCsrf, async (req, res) => {
     try {
       let payload;
@@ -380,8 +393,15 @@ export function createStudioRouter({
 
   router.post('/prompt', promptLimiter, requireCsrf, async (req, res) => {
     try {
+      const providerId = req.body?.providerId;
+      const model = req.body?.model;
+      if (providerId) await modelRegistry.getModels(providerId);
+      if (model && !(await modelRegistry.isAllowed(providerId, model))) {
+        return res.status(400).json({ error: 'Model AI tidak didukung untuk provider ini' });
+      }
       const result = await generateScene(req.body?.prompt, {
-        providerId: req.body?.providerId,
+        ...(providerId ? { providerId } : {}),
+        ...(model ? { model } : {}),
       });
       return res.json(result);
     } catch (error) {

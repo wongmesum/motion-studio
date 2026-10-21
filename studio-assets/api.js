@@ -122,8 +122,14 @@ export async function logout() {
 }
 
 export const listTemplates = () => studio('/templates');
-export const generateScene = (prompt, providerId) =>
-  studio('/prompt', { method: 'POST', body: { prompt, providerId } });
+/** Provider + model catalog. Carries ids only; the API key never leaves the server. */
+export const listAiModels = () => studio('/models');
+export const generateScene = (prompt, providerId, model) =>
+  studio('/prompt', {
+    method: 'POST',
+    // An omitted model keeps the provider's configured default.
+    body: { prompt, providerId, ...(model ? { model } : {}) },
+  });
 export const compileProject = (project, { useAiHtml = false, signal } = {}) =>
   studio('/projects/compile', { method: 'POST', body: { project, useAiHtml }, signal });
 export const submitRender = (project, { useAiHtml = false } = {}) =>
