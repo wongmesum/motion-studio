@@ -18,6 +18,7 @@ export const PROJECT_LIMITS = {
 };
 
 export const ELEMENT_TYPES = Object.freeze(['text', 'image', 'video']);
+export const MOTION_PRESETS = Object.freeze(['none', 'fade-in', 'slide-up', 'slide-left', 'zoom-in']);
 export const ELEMENT_ROLES = Object.freeze(['title', 'subtitle', 'caption', 'background', 'pip', 'logo']);
 export const TRANSITION_TYPES = Object.freeze(['fade', 'slide', 'none']);
 export const ALIGNMENTS = Object.freeze(['left', 'center', 'right']);
@@ -140,6 +141,17 @@ function normalizeAudio(audio) {
   return { assetId: normalizeAssetId(audio.assetId) };
 }
 
+function normalizeMotion(motion) {
+  if (motion === undefined || motion === null) return undefined;
+  if (!motion || typeof motion !== 'object' || Array.isArray(motion)) throw new Error('Animasi tidak valid');
+  const preset = normalizeEnum(motion.preset, 'none', MOTION_PRESETS, 'Animasi');
+  const startSec = motion.startSec === undefined ? 0 : motion.startSec;
+  const durationSec = motion.durationSec === undefined ? 0.8 : motion.durationSec;
+  if (typeof startSec !== 'number' || !Number.isFinite(startSec) || startSec < 0 || startSec > 600) throw new Error('Waktu mulai animasi tidak valid');
+  if (typeof durationSec !== 'number' || !Number.isFinite(durationSec) || durationSec <= 0 || durationSec > 60) throw new Error('Durasi animasi tidak valid');
+  return { preset, startSec, durationSec };
+}
+
 function normalizeTextElement(element, textBudget) {
   const text = assertString(element.text ?? '', 'Teks elemen tidak valid', PROJECT_LIMITS.maxTextChars);
   if (textBudget.used + text.length > PROJECT_LIMITS.maxElementTextTotal) {
@@ -165,6 +177,7 @@ function normalizeTextElement(element, textBudget) {
     fontSize,
     color: normalizeColor(element.color, '#f1f5f9', 'teks'),
     align: normalizeEnum(element.align, 'left', ALIGNMENTS, 'Align'),
+    ...(normalizeMotion(element.motion) ? { motion: normalizeMotion(element.motion) } : {}),
   };
 }
 
@@ -179,6 +192,7 @@ function normalizeVisualElement(element, type) {
     x: normalizeUnit(element.x, 0, 'x'),
     y: normalizeUnit(element.y, 0, 'y'),
     width: normalizeUnit(element.width, 1, 'width'),
+    ...(normalizeMotion(element.motion) ? { motion: normalizeMotion(element.motion) } : {}),
     ...(type === 'video'
       ? {
         muted: element.muted === undefined ? true : Boolean(element.muted),
@@ -216,6 +230,11 @@ function normalizeScene(scene, textBudget) {
     throw new Error('Durasi scene tidak valid');
   }
 
+  for (const element of elements) {
+    if (element?.motion && element.motion.startSec + element.motion.durationSec > durationSec + 0.00001) {
+      throw new Error('Animasi elemen melebihi durasi scene');
+    }
+  }
   return {
     id: normalizeId(scene?.id, SCENE_ID_PATTERN, 'scn'),
     durationSec,
