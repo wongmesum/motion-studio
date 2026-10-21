@@ -262,27 +262,27 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
 
     if (element.type === 'text' && ['title', 'subtitle', 'caption'].includes(element.role)
       && supportsProperty(project.template, 'text', 'motion')) {
-    const motionHeading = doc.createElement('h3');
-    motionHeading.textContent = 'Animasi elemen';
-    elementGroup.append(motionHeading);
-    const motion = element.motion || { preset: 'none', startSec: 0, durationSec: 0.8 };
-    const preset = select(doc, motion.preset, MOTION_PRESETS);
-    preset.addEventListener('change', () => {
-      store.updateElement(scene.id, element.id, () => ({ motion: { ...motion, preset: preset.value } }));
-    });
-    elementGroup.append(control(doc, 'Preset motion', preset));
-    for (const [field, labelText] of [['startSec', 'Mulai (detik)'], ['durationSec', 'Durasi (detik)']]) {
-      const value = input(doc, 'number', motion[field], { min: field === 'startSec' ? '0' : '0.1', max: String(scene.durationSec), step: '0.1' });
-      value.addEventListener('change', () => {
-        const seconds = Number(value.value);
-        if (Number.isFinite(seconds) && seconds >= (field === 'startSec' ? 0 : 0.1)
-          && (field === 'startSec' ? seconds + motion.durationSec <= scene.durationSec : motion.startSec + seconds <= scene.durationSec)) {
-          store.updateElement(scene.id, element.id, () => ({ motion: { ...motion, [field]: seconds } }));
-        } else notify('Timing animasi harus berada dalam durasi scene.', 'error');
+      const motionHeading = doc.createElement('h3');
+      motionHeading.textContent = 'Animasi elemen';
+      elementGroup.append(motionHeading);
+      const motion = element.motion || { preset: 'none', startSec: 0, durationSec: Math.min(0.8, scene.durationSec) };
+      const preset = select(doc, motion.preset, MOTION_PRESETS);
+      preset.addEventListener('change', () => {
+        store.updateElement(scene.id, element.id, () => ({ motion: preset.value === 'none' ? undefined : { ...motion, preset: preset.value } }));
       });
-      elementGroup.append(control(doc, labelText, value));
-    }
-
+      elementGroup.append(control(doc, 'Preset motion', preset));
+      for (const [field, labelText] of [['startSec', 'Mulai (detik)'], ['durationSec', 'Durasi (detik)']]) {
+        const value = input(doc, 'number', motion[field], { min: field === 'startSec' ? '0' : '0.1', max: String(scene.durationSec), step: '0.1' });
+        value.addEventListener('change', () => {
+          const seconds = Number(value.value);
+          if (Number.isFinite(seconds) && seconds >= (field === 'startSec' ? 0 : 0.1)
+            && (field === 'startSec' ? seconds + motion.durationSec <= scene.durationSec : motion.startSec + seconds <= scene.durationSec)) {
+            store.updateElement(scene.id, element.id, () => ({ motion: { ...motion, [field]: seconds } }));
+          } else notify('Timing animasi harus berada dalam durasi scene.', 'error');
+        });
+        elementGroup.append(control(doc, labelText, value));
+      }
+  
     }
 
     const actions = doc.createElement('div');
