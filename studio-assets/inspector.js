@@ -181,11 +181,91 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
     group.append(hint);
   }
 
+  // SceneDirector-style path controls: start/end coordinates are relative to the canvas.
+  function gestureFields(group, scene) {
+    const gestures = scene.gestures || [];
+    const add = doc.createElement('button');
+    add.type = 'button';
+    add.className = 'btn btn-ghost btn-sm';
+    add.textContent = '+ Tambah gesture';
+    add.disabled = gestures.length >= 6;
+    add.addEventListener('click', () => {
+      store.updateScene(scene.id, (current) => ({
+        gestures: [...(current.gestures || []), {
+          type: 'tap', effect: 'sunburst', startSec: 0,
+          durationSec: Math.min(1, current.durationSec),
+          from: { x: 0.5, y: 0.5 }, to: { x: 0.5, y: 0.5 },
+        }],
+      }));
+      render();
+    });
+    const heading = doc.createElement('h3');
+    heading.textContent = 'Gesture / Lottie';
+    group.append(heading, add);
+    const updateGesture = (index, patch) => {
+      store.updateScene(scene.id, (current) => ({
+        gestures: (current.gestures || []).map((item, i) =>
+          i === index ? { ...item, ...patch } : item
+        ),
+      }));
+    };
+    gestures.forEach((gesture, index) => {
+      const heading = doc.createElement('h3');
+      heading.textContent = 'Gesture ' + (index + 1);
+      group.append(heading);
+      for (const [key, labelText, choices] of [
+        ['type', 'Aksi', ['tap', 'swipe']],
+        ['effect', 'Efek Lottie', ['none', 'sunburst']],
+      ]) {
+        const widget = select(doc, gesture[key], choices);
+        widget.addEventListener('change', () => updateGesture(index, { [key]: widget.value }));
+        group.append(control(doc, labelText, widget));
+      }
+      for (const [key, labelText] of [['startSec', 'Mulai (detik)'], ['durationSec', 'Durasi (detik)']]) {
+        const widget = input(doc, 'number', gesture[key], { min: key === 'startSec' ? '0' : '0.1', max: String(scene.durationSec), step: '0.1' });
+        widget.addEventListener('change', () => {
+          const n = Number(widget.value);
+          const start = key === 'startSec' ? n : gesture.startSec;
+          const duration = key === 'durationSec' ? n : gesture.durationSec;
+          if (Number.isFinite(n) && start >= 0 && duration > 0
+            && start + duration <= scene.durationSec + 0.00001) {
+            updateGesture(index, { [key]: n });
+          } else notify('Gesture harus berada dalam durasi scene.', 'error');
+        });
+        group.append(control(doc, labelText, widget));
+      }
+      for (const [point, name] of [['from', 'Mulai'], ['to', 'Tujuan']]) {
+        for (const axis of ['x', 'y']) {
+          const field = input(doc, 'number', gesture[point][axis], { min: '0', max: '1', step: '0.01' });
+          field.addEventListener('change', () => {
+            const n = Number(field.value);
+            if (Number.isFinite(n) && n >= 0 && n <= 1) {
+              updateGesture(index, { [point]: { ...gesture[point], [axis]: n } });
+            } else notify('Koordinat gesture harus 0 sampai 1.', 'error');
+          });
+          group.append(control(doc, name + ' ' + axis.toUpperCase(), field));
+        }
+      }
+      const remove = doc.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn btn-danger btn-sm';
+      remove.textContent = 'Hapus gesture ' + (index + 1);
+      remove.addEventListener('click', () => {
+        store.updateScene(scene.id, (current) => ({
+          gestures: (current.gestures || []).filter((_, i) => i !== index),
+        }));
+        render();
+      });
+      group.append(remove);
+    });
+  }
+
   function sceneFields(group, scene) {
     const duration = input(doc, 'number', scene.durationSec, { min: '1', max: '60', step: '0.5' });
     duration.addEventListener('change', () => {
       const value = Number(duration.value);
-      if (Number.isFinite(value) && value > 0) {
+      const lastGesture = Math.max(0, ...(scene.gestures || []).map((g) => g.startSec + g.durationSec));
+      if (Number.isFinite(value) && value > 0 && value >= lastGesture) {
         store.updateScene(scene.id, () => ({ durationSec: value }));
       }
     });
@@ -220,6 +300,7 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
     sceneGroup.append(sceneHeading);
     projectFields(sceneGroup, project);
     sceneFields(sceneGroup, scene);
+    gestureFields(sceneGroup, scene);
 
     const addActions = doc.createElement('div');
     addActions.className = 'inspector-actions';
