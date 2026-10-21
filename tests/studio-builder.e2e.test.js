@@ -959,6 +959,7 @@ test('project library creates, renames, and deletes projects', async () => {
     );
     await page.click('#openLibraryBtn');
     await page.waitForSelector('#libraryOverlay.visible');
+    await page.getByText('Belum ada project').waitFor({ timeout: PAGE_TIMEOUT_MS });
     assert.match(await page.locator('#libraryList').textContent(), /Belum ada project/);
 
     await page.click('#libraryNewBtn');
