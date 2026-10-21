@@ -1554,7 +1554,7 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
     await page.click('#addSceneBtn');
     const add = page.getByRole('button', { name: '+ Tambah gesture' });
     await add.click();
-    const handles = page.locator('#gesturePathEditor circle');
+    const handles = page.locator('#gesturePathEditor .gesture-handle');
     await handles.first().waitFor({ timeout: PAGE_TIMEOUT_MS });
     assert.equal(await handles.count(), 2);
     // Tap handles overlap; use the destination handle, initially centred.
@@ -1584,17 +1584,17 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
     await page.mouse.move(origin.x + origin.width / 2 + 65, origin.y + origin.height / 2 + 20, { steps: 5 });
     await page.mouse.up();
     const debug = await page.evaluate(() => {
-      const circle = document.querySelectorAll('#gesturePathEditor circle')[1];
+      const circle = document.querySelectorAll('#gesturePathEditor .gesture-handle')[1];
       const stage = document.getElementById('previewStage');
       return {
-        cx: circle?.getAttribute('cx'),
+        cx: circle?.style.left,
         pointerLog: window.__gesturePointerLog,
         rect: stage.getBoundingClientRect().toJSON(),
         svgPointer: getComputedStyle(document.getElementById('gesturePathEditor')).pointerEvents,
         circlePointer: circle ? getComputedStyle(circle).pointerEvents : null,
       };
     });
-    assert.ok(Number(debug.cx) > 500, 'Gesture drag did not persist: ' + JSON.stringify({ ...debug, hit, center, origin }));
+    assert.ok(parseFloat(debug.cx) > 50, 'Gesture drag did not persist: ' + JSON.stringify({ ...debug, hit, center, origin }));
   } finally {
     await stack.close();
   }
