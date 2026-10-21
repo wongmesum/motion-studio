@@ -52,7 +52,19 @@ motion-studio/
 ├── docker-compose.yml
 ├── .env.example
 ├── render.js                       # Standalone CLI Renderer (node render.js)
-├── preview-studio.html             # Interactive Web Studio & Live 60fps Previewer
+├── preview-studio.html             # Shell Video Builder (/studio) — prompt, scene, aset
+├── studio-assets/                  # Modul ES front-end builder (disajikan lewat /api/studio/ui)
+│   ├── api.js                      # Session, CSRF, fetch, pemetaan error
+│   ├── state.js                    # Project state immutable, undo/redo, recovery draft
+│   ├── prompt-panel.js             # Composer prompt + draft scene dari AI
+│   ├── assets-panel.js             # Upload, daftar, drag, hapus aset
+│   ├── timeline.js                 # Daftar scene, reorder, binding aset
+│   ├── inspector.js                # Properti elemen terpilih
+│   ├── preview-frame.js            # Iframe sandbox + transport postMessage
+│   ├── render-panel.js             # Pengaturan render, submit, polling
+│   ├── icons.js                    # Ikon SVG inline
+│   ├── main.js                     # Wiring, keyboard, init
+│   └── style.css                   # Design token + komponen
 ├── build.sh                        # Script pembuat motion-studio.zip (Linux/macOS)
 ├── build.ps1                       # Script pembuat motion-studio.zip (Windows PowerShell)
 │
@@ -71,6 +83,16 @@ motion-studio/
 │   ├── server.js                   # Express API (/render, /jobs, /templates, /health, /metrics)
 │   ├── queue.js                    # BullMQ + Redis Queue (dengan In-Memory Fallback otomatis)
 │   ├── renderer.js                 # Parallel Chunked Playwright + Multi-codec FFmpeg
+│   ├── studio-routes.js            # Router /api/studio (project, prompt, aset, compile, render)
+│   ├── studio/                     # Domain video builder
+│   │   ├── project-schema.js       # Skema project versioned + validasi ketat
+│   │   ├── project-store.js        # CRUD atomik + revision conflict
+│   │   ├── asset-store.js          # Penyimpanan aset upload + metadata
+│   │   ├── upload-middleware.js    # Streaming upload (busboy) + validasi berlapis
+│   │   ├── compile-project.js      # Compiler deterministik project -> HTML
+│   │   ├── preview-assets.js       # Capability URL HMAC untuk aset preview
+│   │   ├── scene-ai.js             # generateSceneDraft (provider-aware)
+│   │   └── json-extract.js         # Ekstraksi JSON dari keluaran AI
 │   ├── deepseek-engineer.js        # 5-Stage Gate: Validate → Optimize → Test → Fix → Approve
 │   ├── deepseek-fixer.js           # Alias ekspor fixer
 │   ├── cache.js                    # Content-Addressable SHA-256 Cache & Asset Deduplication
@@ -105,6 +127,26 @@ motion-studio/
 └── examples/
     ├── demo-job.json               # Contoh payload JSON untuk POST /render
     └── chatgpt-system-prompt.md    # System Prompt siap pakai untuk ChatGPT
+```
+
+### Struktur Test
+
+```text
+tests/
+├── studio-project-schema.test.js   # Skema + validasi + normalisasi
+├── studio-project-store.test.js    # CRUD atomik, ownership, revision conflict
+├── studio-asset-store.test.js      # Penyimpanan + magic bytes + traversal
+├── studio-asset-routes.test.js     # Route upload/list/content/delete
+├── studio-upload-policy.test.js    # Batas ukuran + content type + probe
+├── studio-compile.test.js          # Injeksi JSON, sanitasi, target preview/render
+├── studio-preview-assets.test.js   # Capability URL HMAC + expiry + tamper
+├── studio-prompt.test.js           # AI -> scene JSON + rate limit
+├── studio-json-extract.test.js     # Ekstraksi objek JSON dari keluaran AI
+├── studio-template-hooks.test.js   # __ASSETS_READY__ / __AWAIT_FRAME__
+├── studio-state.test.js            # Store front-end, undo/redo, revision
+├── studio-builder.e2e.test.js      # Playwright: alur builder, sandbox, a11y
+├── studio-ui-routes.test.js        # Route /api/studio/ui + allowlist
+└── studio-render-panel.test.js     # Submit render + polling + proyeksi aman
 ```
 
 ---
@@ -151,7 +193,7 @@ bash scripts/install-vps.sh
 docker compose up -d --build
 ```
 
-### 3. Login Studio dan Render dari Browser
+### 3. Login Video Builder
 
 Set password admin langsung di terminal VPS. Script memakai prompt tersembunyi,
 menyimpan hash scrypt saja ke `.env`, lalu membuat ulang container API:
@@ -161,17 +203,74 @@ sudo scripts/set-admin-password.sh
 ```
 
 Password jangan dikirim lewat chat, disimpan di browser storage, atau ditulis sebagai
-argumen command. Buka `/studio`, masukkan password, lalu pilih template, durasi, FPS,
-resolusi, codec, dan `audio_url` opsional. Tombol **Render Video** membuat job nyata;
-panel menampilkan progress, preview, dan link unduhan setelah selesai. Session yang sama
-membuka `/admin`, berlaku 8 jam, dan dapat diakhiri lewat tombol logout.
+argumen command. Session yang sama membuka `/admin`, berlaku 8 jam, dan dapat diakhiri
+lewat tombol logout.
+
+### 4. Alur Video Builder
+
+`/studio` adalah video builder, bukan lagi panel render template. Empat langkahnya:
+
+1. **Prompt AI** — tulis ide video, pilih provider (`River AI` atau `DeepSeek`), tekan
+   **Buat Struktur Scene**. Server mengubah prompt menjadi scene JSON yang tervalidasi
+   skema, bukan HTML.
+2. **Edit scene** — struktur masuk ke timeline. Tambah, duplikat, hapus, atau ubah urutan
+   scene; pilih elemen lewat kartu timeline lalu ubah teks, warna, posisi, ukuran font,
+   dan alignment di Inspector.
+3. **Upload dan binding aset** — tarik file ke asset library atau pilih dari dialog.
+   Tarik kartu aset ke kartu scene untuk mengikatnya, atau pakai tombol **+ Gambar** /
+   **+ Video** di timeline. Inspector juga bisa mengganti aset pada elemen terpilih.
+4. **Preview dan render** — preview iframe memuat HTML hasil compiler deterministik yang
+   sama dengan yang dipakai renderer, jadi tampilan tidak dapat berbeda dari hasil video.
+   Atur durasi, FPS, resolusi, dan codec, lalu tekan **Render Video**.
+
+`useAiHtml` (**Poles HTML dengan AI**) bersifat opsional. Compiler deterministik selalu
+jalan lebih dulu; bila HTML dari AI gagal sanitasi, ukuran, atau uji tiga frame, hasil
+deterministik tetap dipakai dan alasannya muncul sebagai peringatan pada status preview.
 
 `H.264` paling kompatibel untuk preview browser. `H.265` dan `AV1` bergantung pada
 browser serta sistem operasi. `NVENC` memerlukan GPU NVIDIA dan driver yang cocok pada
 worker. Aturan HTTPS, hostname, format, ukuran, serta timeout untuk `audio_url` mengikuti
 bagian [Audio](#audio).
 
-### 4. Uji Kirim Job Render via API
+### 5. Batas Upload Aset
+
+Aset disimpan di disk server (`vps-server/data/uploads/<ownerKey>/`), bukan object
+storage. Owner directory memakai hash, dan nama file asli hanya tersimpan sebagai
+metadata tampilan sehingga tidak pernah menjadi path.
+
+| Jenis | Ekstensi | Ukuran maksimum | Validasi tambahan |
+| --- | --- | --- | --- |
+| Gambar | png, jpg, jpeg, webp | `MAX_UPLOAD_IMAGE_BYTES` (15 MB) | Magic bytes, `sharp.metadata()`, dimensi ≤ `MAX_UPLOAD_IMAGE_DIMENSION` |
+| Video | mp4, webm | `MAX_UPLOAD_VIDEO_BYTES` (100 MB) | Magic bytes, FFprobe, durasi ≤ `MAX_UPLOAD_VIDEO_DURATION_SEC` |
+| Audio | mp3, wav, m4a, aac | `MAX_UPLOAD_AUDIO_BYTES` (25 MB) | Mengikuti `audio-policy.js` |
+
+Keseluruhan aset per owner dibatasi `MAX_UPLOAD_ASSETS_PER_OWNER` dan
+`MAX_UPLOAD_OWNER_BYTES`. File ditulis ke `.tmp` lalu di-`rename` setelah validasi, dan
+file sementara dihapus bila validasi gagal. Aturan TTL cleanup memakai `UPLOAD_TTL_HOURS`
+(default 72 jam) untuk aset yang tidak lagi direferensikan project.
+
+`deploy/nginx-app.bangalimin.com.conf` menaikkan `client_max_body_size` hanya pada
+`/api/studio/assets`; route lain tetap pada batas kecil.
+
+### 6. Preview Sandbox dan Capability URL Aset
+
+Preview berjalan di `<iframe sandbox="allow-scripts">`. Tanpa `allow-same-origin`, frame
+punya opaque origin: parent tidak dapat membaca `contentDocument`, dan subresource tidak
+membawa cookie session. Karena itu:
+
+- Aset preview dimuat lewat URL capability bertanda tangan HMAC-SHA256 yang berlaku
+  singkat (default 10 menit) dan terikat pada satu actor serta satu asset id. Route
+  `/api/studio/preview-assets/:id/content` memverifikasi tanda tangan dengan
+  `crypto.timingSafeEqual` sebelum membaca metadata; gagal verifikasi selalu `404`.
+- Transport preview dikendalikan satu arah lewat `postMessage`
+  (`motion-preview-frame`) yang memanggil `window.renderFrame(t)` di dalam frame.
+- Jembatan `postMessage` hanya disuntikkan pada target `preview`. HTML target `render`
+  tidak pernah memuatnya.
+
+Route aset terautentikasi (`/api/studio/assets/:id/content`) tetap memerlukan session dan
+tidak berubah.
+
+### 7. Uji Kirim Job Render via API
 
 ```bash
 curl -X POST http://localhost:3000/render \
@@ -182,7 +281,7 @@ curl -X POST http://localhost:3000/render \
 # Use generated values from vps-server/data/generated-secrets.json, or set explicit deployment secrets.
 ```
 
-### 5. Cek Status & Hasil Video
+### 8. Cek Status & Hasil Video
 
 ```bash
 curl http://localhost:3000/jobs/JOB_ID \
@@ -192,7 +291,7 @@ curl http://localhost:3000/jobs/JOB_ID \
 Hasil video tersimpan di `./output/JOB_ID.mp4` atau melalui Signed URL MinIO S3.
 Unduhan lokal lewat `GET /output/JOB_ID.mp4` juga wajib menyertakan `X-Token`.
 
-### 6. Operasi Produksi
+### 9. Operasi Produksi
 
 Backup mencakup `vps-server/data`, `output`, dan snapshot konsisten volume Redis.
 Redis dihentikan singkat selama volume disalin lalu dijalankan kembali dengan verifikasi

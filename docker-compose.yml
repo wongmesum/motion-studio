@@ -21,6 +21,8 @@ services:
     ports:
       - "127.0.0.1:${PORT:-3000}:3000"
     env_file: .env
+    environment:
+      RENDER_ALLOWED_FILE_DIRS: /app/vps-server/data/uploads
     volumes:
       - ./vps-server/data:/app/vps-server/data:z
       - ./output:/app/output:z
@@ -38,6 +40,8 @@ services:
     restart: unless-stopped
     command: node vps-server/workers/worker.js
     env_file: .env
+    environment:
+      RENDER_ALLOWED_FILE_DIRS: /app/vps-server/data/uploads
     volumes:
       - ./vps-server/data:/app/vps-server/data:z
       - ./output:/app/output:z
