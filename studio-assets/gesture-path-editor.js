@@ -1,95 +1,104 @@
 /**
- * Lightweight SceneDirector-inspired path editor for Motion Studio.
- * Renders draggable start/end markers above the sandboxed preview iframe.
- * The overlay is editor-only; export uses normalized scene.gestures data.
+ * SceneDirector-style visual path editor, independent from the sandboxed iframe.
+ * Uses HTML buttons, not transformed SVG coordinates, for reliable pointer hit-tests
+ * on Chromium, desktop and mobile touchscreens.
  */
 export function createGesturePathEditor({ document: doc, store, getSelection }) {
   const stage = doc.getElementById('previewStage');
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = doc.createElementNS(ns, 'svg');
-  svg.id = 'gesturePathEditor';
-  svg.setAttribute('viewBox', '0 0 1000 1000');
-  svg.setAttribute('preserveAspectRatio', 'none');
-  svg.setAttribute('aria-label', 'Editor visual jalur gesture');
-  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:auto;';
-  stage.append(svg);
-  let activeDrag = null;
+  const layer = doc.createElement('div');
+  layer.id = 'gesturePathEditor';
+  layer.setAttribute('aria-label', 'Editor visual jalur gesture');
+  layer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:auto;';
+  stage.append(layer);
+  let activeDrag = false;
+  const clamp = n => Math.max(0, Math.min(1, n));
 
-  function updateGesture(sceneId, index, name, coords) {
-    store.updateScene(sceneId, (scene) => ({
-      gestures: (scene.gestures || []).map((gesture, i) => i !== index ? gesture : {
-        ...gesture, [name]: coords
-      }),
-    }));
-  }
   function point(event) {
-    const rect = stage.getBoundingClientRect();
-    const clamp = value => Math.max(0, Math.min(1, value));
+    const rect = layer.getBoundingClientRect();
     return {
       x: Math.round(clamp((event.clientX - rect.left) / rect.width) * 1000) / 1000,
       y: Math.round(clamp((event.clientY - rect.top) / rect.height) * 1000) / 1000,
     };
   }
-  function marker(name, coords, gesture, sceneId, index, group) {
-    const circle = doc.createElementNS(ns, 'circle');
-    circle.setAttribute('cx', String(coords.x * 1000));
-    circle.setAttribute('cy', String(coords.y * 1000));
-    circle.setAttribute('r', '15');
-    circle.setAttribute('fill', name === 'from' ? '#38bdf8' : '#a855f7');
-    circle.setAttribute('stroke', 'white');
-    circle.setAttribute('stroke-width', '4');
-    circle.setAttribute('aria-label', 'Gesture ' + (index + 1) + ' ' + name);
-    circle.style.cssText = 'pointer-events:all;cursor:grab;touch-action:none;';
-    circle.addEventListener('pointerdown', event => {
-      activeDrag = { sceneId, index, name, gesture, pointerId: event.pointerId };
-      circle.setPointerCapture(event.pointerId);
-      circle.style.cursor = 'grabbing';
+  function updateGesture(sceneId, index, name, coords) {
+    store.updateScene(sceneId, current => ({
+      gestures: (current.gestures || []).map((g, i) =>
+        i === index ? { ...g, [name]: coords } : g),
+    }));
+  }
+  function drawLine(line, start, end) {
+    const rect = layer.getBoundingClientRect();
+    const dx = (end.x - start.x) * rect.width;
+    const dy = (end.y - start.y) * rect.height;
+    line.style.left = (start.x * 100) + '%';
+    line.style.top = (start.y * 100) + '%';
+    line.style.width = Math.hypot(dx, dy) + 'px';
+    line.style.transform = 'translateY(-50%) rotate(' + Math.atan2(dy, dx) + 'rad)';
+  }
+  function marker(gesture, pointName, index, sceneId, line, group) {
+    const node = doc.createElement('button');
+    node.type = 'button';
+    node.className = 'gesture-handle';
+    node.setAttribute('aria-label', 'Gesture ' + (index + 1) + ' ' + pointName);
+    node.style.cssText = [
+      'position:absolute', 'width:26px', 'height:26px', 'border-radius:50%',
+      'border:3px solid white', 'transform:translate(-50%,-50%)',
+      'z-index:1', 'pointer-events:auto', 'touch-action:none', 'cursor:grab',
+      'background:' + (pointName === 'from' ? '#38bdf8' : '#a855f7')
+    ].join(';');
+    const place = coords => {
+      node.style.left = (coords.x * 100) + '%';
+      node.style.top = (coords.y * 100) + '%';
+    };
+    place(gesture[pointName]);
+    let dragged = null;
+    node.addEventListener('pointerdown', event => {
+      activeDrag = true;
+      dragged = { pointerId: event.pointerId, location: gesture[pointName] };
+      node.setPointerCapture(event.pointerId);
+      node.style.cursor = 'grabbing';
+      event.preventDefault();
     });
-    circle.addEventListener('pointermove', event => {
-      if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
-      const next = point(event);
-      circle.setAttribute('cx', String(next.x * 1000));
-      circle.setAttribute('cy', String(next.y * 1000));
-      const line = group.querySelector('line');
-      line.setAttribute(name === 'from' ? 'x1' : 'x2', String(next.x * 1000));
-      line.setAttribute(name === 'from' ? 'y1' : 'y2', String(next.y * 1000));
+    node.addEventListener('pointermove', event => {
+      if (!dragged || event.pointerId !== dragged.pointerId) return;
+      dragged.location = point(event);
+      place(dragged.location);
+      const start = pointName === 'from' ? dragged.location : gesture.from;
+      const end = pointName === 'to' ? dragged.location : gesture.to;
+      drawLine(line, start, end);
     });
-    function finish(event) {
-      if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+    node.addEventListener('pointerup', event => {
+      if (!dragged || event.pointerId !== dragged.pointerId) return;
       const next = point(event);
-      const { sceneId: currentScene, index: currentIndex, name: pointName } = activeDrag;
-      activeDrag = null;
-      circle.style.cursor = 'grab';
-      updateGesture(currentScene, currentIndex, pointName, next);
-    }
-    circle.addEventListener('pointerup', finish);
-    circle.addEventListener('pointercancel', () => { activeDrag = null; render(); });
-    return circle;
+      dragged = null;
+      activeDrag = false;
+      node.style.cursor = 'grab';
+      updateGesture(sceneId, index, pointName, next);
+    });
+    node.addEventListener('pointercancel', () => {
+      dragged = null;
+      activeDrag = false;
+      render();
+    });
+    return node;
   }
   function render() {
     if (activeDrag) return;
-    svg.replaceChildren();
-    const project = store.getProject();
+    layer.replaceChildren();
     const selection = getSelection();
-    const scene = project.scenes.find(item => item.id === selection?.sceneId);
+    const scene = store.getProject().scenes.find(item => item.id === selection?.sceneId);
     if (!scene) return;
     (scene.gestures || []).forEach((gesture, index) => {
-      const group = doc.createElementNS(ns, 'g');
-      const line = doc.createElementNS(ns, 'line');
-      line.setAttribute('x1', String(gesture.from.x * 1000));
-      line.setAttribute('y1', String(gesture.from.y * 1000));
-      line.setAttribute('x2', String(gesture.to.x * 1000));
-      line.setAttribute('y2', String(gesture.to.y * 1000));
-      line.setAttribute('stroke', 'white');
-      line.setAttribute('stroke-width', '3');
-      line.setAttribute('stroke-dasharray', '10 7');
-      line.setAttribute('opacity', '0.7');
+      const group = doc.createElement('div');
+      group.className = 'gesture-path';
+      group.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+      const line = doc.createElement('div');
+      line.style.cssText = 'position:absolute;height:2px;border-top:2px dashed white;opacity:.75;transform-origin:left center;pointer-events:none;';
+      drawLine(line, gesture.from, gesture.to);
       group.append(line);
-      // SVG paints later children last. Tap's coincident markers are both draggable
-      // via the inspector numeric controls; visually the end marker is on top.
-      group.append(marker('from', gesture.from, gesture, scene.id, index, group));
-      group.append(marker('to', gesture.to, gesture, scene.id, index, group));
-      svg.append(group);
+      group.append(marker(gesture, 'from', index, scene.id, line, group));
+      group.append(marker(gesture, 'to', index, scene.id, line, group));
+      layer.append(group);
     });
   }
   return { render };
