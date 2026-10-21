@@ -163,6 +163,28 @@ window.__AWAIT_FRAME__ = function () { return null; };
 const easeOutExpo = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+function applyMotion(node, element, localT) {
+  const motion = element && element.motion;
+  if (!motion || motion.preset === 'none') {
+    node.style.opacity = '';
+    node.style.transform = '';
+    return;
+  }
+  const raw = Math.max(0, Math.min(1, (localT - motion.startSec) / motion.durationSec));
+  const p = 1 - Math.pow(1 - raw, 3);
+  node.style.opacity = String(p);
+  const translate = motion.preset === 'slide-up' ? 'translateY(' + (1 - p) * 60 + 'px)'
+    : motion.preset === 'slide-left' ? 'translateX(' + (1 - p) * 80 + 'px)'
+    : motion.preset === 'zoom-in' ? 'scale(' + (0.85 + p * 0.15) + ')'
+    : 'none';
+  node.style.transform = translate;
+}
+function syncSceneMotion(scene, localT) {
+  for (const role of ['caption', 'title', 'subtitle']) {
+    const id = role === 'caption' ? 'badge' : role;
+    applyMotion(document.getElementById(id), sceneElement(scene, role), localT);
+  }
+}
 function syncSceneText(scene) {
   applyTextProperties(document.getElementById('badge'), sceneElement(scene, 'caption'), 'RENDER PIPELINE 1080P 60FPS');
   applyTextProperties(document.getElementById('title'), sceneElement(scene, 'title'), 'MOTION STUDIO');
@@ -209,6 +231,18 @@ function drawFrame(time) {
     const p = easeOutExpo(Math.min(1, localT / 1.0));
     document.getElementById('title').style.opacity = String(p);
     document.getElementById('title').style.transform = `translateY(${(1 - p) * 60}px)`;
+  }
+
+  // Motion presets override the legacy timeline only for elements that opt in.
+  if (active) {
+    const roles = ['caption', 'title', 'subtitle'];
+    for (const role of roles) {
+      const element = sceneElement(active.scene, role);
+      if (element && element.motion) {
+        const node = document.getElementById(role === 'caption' ? 'badge' : role);
+        applyMotion(node, element, localT);
+      }
+    }
   }
 
   // Background Gradient
