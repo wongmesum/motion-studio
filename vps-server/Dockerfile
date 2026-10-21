@@ -29,6 +29,7 @@ COPY vps-server/ ./
 WORKDIR /app
 COPY admin-dashboard.html preview-studio.html ./
 COPY render-engine/ ./render-engine/
+COPY studio-assets/ ./studio-assets/
 
 EXPOSE 3000
 

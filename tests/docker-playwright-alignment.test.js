@@ -59,6 +59,13 @@ test('the VPS image preserves the project layout required by server routes', asy
   assert.match(dockerfile, /WORKDIR\s+\/app\/vps-server[\s\S]*COPY\s+vps-server\/\s+\.\//);
   assert.match(dockerfile, /COPY\s+admin-dashboard\.html\s+preview-studio\.html\s+\.\//);
   assert.match(dockerfile, /COPY\s+render-engine\/\s+\.\/render-engine/);
+  // `/api/studio/ui/:filename` resolves its assets relative to vps-server/ and serves
+  // nothing but 404s when this directory is missing, which silently breaks the builder UI.
+  assert.match(
+    dockerfile,
+    /COPY\s+studio-assets\/\s+\.\/studio-assets/,
+    'the VPS image must copy studio-assets, or every builder UI module returns 404'
+  );
   assert.match(dockerfile, /CMD\s+\["node",\s*"vps-server\/server\.js"\]/);
 });
 
