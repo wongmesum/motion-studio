@@ -429,6 +429,9 @@ input[type='checkbox'] { accent-color: var(--cyan); width: 16px; height: 16px; }
 
 @media (max-width: 640px) {
   .topbar { padding: 10px 14px; gap: 10px; }
+  .prompt-meta { flex-wrap: wrap; }
+  .prompt-meta label { flex: 1 1 150px; min-width: 0; max-width: 100%; }
+  .prompt-meta select { flex: 1 1 auto; min-width: 0; max-width: 100%; }
   .topbar-actions { width: 100%; justify-content: space-between; }
   .save-state { min-width: 0; text-align: left; }
   .left-rail { grid-template-columns: 1fr; }
