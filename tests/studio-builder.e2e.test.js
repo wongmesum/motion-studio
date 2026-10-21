@@ -1570,6 +1570,15 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
     });
     const origin = await dest.boundingBox();
     assert.ok(origin);
+    const center = { x: origin.x + origin.width / 2, y: origin.y + origin.height / 2 };
+    const hit = await page.evaluate(point => {
+      const el = document.elementFromPoint(point.x, point.y);
+      return {
+        tag: el?.tagName, id: el?.id, cls: typeof el?.className === 'string' ? el.className : '',
+        html: el?.outerHTML?.slice(0, 250),
+        viewport: { width: innerWidth, height: innerHeight },
+      };
+    }, center);
     await page.mouse.move(origin.x + origin.width / 2, origin.y + origin.height / 2);
     await page.mouse.down();
     await page.mouse.move(origin.x + origin.width / 2 + 65, origin.y + origin.height / 2 + 20, { steps: 5 });
@@ -1585,7 +1594,7 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
         circlePointer: circle ? getComputedStyle(circle).pointerEvents : null,
       };
     });
-    assert.ok(Number(debug.cx) > 500, 'Gesture drag did not persist: ' + JSON.stringify(debug));
+    assert.ok(Number(debug.cx) > 500, 'Gesture drag did not persist: ' + JSON.stringify({ ...debug, hit }));
   } finally {
     await stack.close();
   }
