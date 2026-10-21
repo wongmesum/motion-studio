@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeProjectDraft, MOTION_PRESETS } from '../vps-server/studio/project-schema.js';
 import { compileProject } from '../vps-server/studio/compile-project.js';
+import { supportsProperty } from '../studio-assets/template-capabilities.js';
 
 function project(motion, sceneDuration = 4) {
   return {
@@ -45,4 +46,14 @@ test('motion data survives deterministic compile', async () => {
   });
   assert.equal(output.project.scenes[0].elements[0].motion.preset, 'slide-up');
   assert.match(output.html, /slide-up/);
+});
+
+
+test('inspector only advertises motion on templates with supported playback', () => {
+  assert.equal(supportsProperty('base', 'text', 'motion'), true);
+  for (const template of ['kinetic-text', 'image-slideshow', 'video-mixer']) {
+    assert.equal(supportsProperty(template, 'text', 'motion'), false);
+  }
+  assert.equal(supportsProperty('base', 'image', 'motion'), false);
+  assert.equal(supportsProperty('base', 'video', 'motion'), false);
 });
