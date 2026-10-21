@@ -1246,13 +1246,18 @@ test('narrow viewports stack the layout and every icon button has an accessible 
       columns: getComputedStyle(document.querySelector('.builder-shell')).gridTemplateColumns
         .split(' ').length,
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      offenders: [...document.querySelectorAll('body *')].map((el) => ({
+        tag: el.tagName.toLowerCase(), cls: String(el.className).slice(0, 80), id: el.id,
+        right: Math.round(el.getBoundingClientRect().right),
+        left: Math.round(el.getBoundingClientRect().left),
+      })).filter((el) => el.right > innerWidth + 1 || el.left < -1).slice(0, 15),
       unnamedIcons: [...document.querySelectorAll('.icon-btn')]
         .filter((button) => !button.getAttribute('aria-label'))
         .map((button) => button.id),
     }));
 
     assert.equal(layout.columns, 1, 'narrow screens stack into a single column');
-    assert.ok(layout.overflow <= 1, `page overflows horizontally by ${layout.overflow}px`);
+    assert.ok(layout.overflow <= 1, `page overflows horizontally by ${layout.overflow}px: ${JSON.stringify(layout.offenders)}`);
     assert.deepEqual(layout.unnamedIcons, [], 'icon-only buttons must expose a name');
   } finally {
     await stack.close();
