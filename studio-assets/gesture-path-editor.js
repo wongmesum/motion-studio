@@ -8,8 +8,18 @@ export function createGesturePathEditor({ document: doc, store, getSelection }) 
   const layer = doc.createElement('div');
   layer.id = 'gesturePathEditor';
   layer.setAttribute('aria-label', 'Editor visual jalur gesture');
-  layer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:auto;';
-  stage.append(layer);
+  layer.style.cssText = 'position:fixed;z-index:100;pointer-events:auto;';
+  doc.body.append(layer);
+  function syncBounds() {
+    const bounds = stage.getBoundingClientRect();
+    layer.style.left = bounds.left + 'px';
+    layer.style.top = bounds.top + 'px';
+    layer.style.width = bounds.width + 'px';
+    layer.style.height = bounds.height + 'px';
+  }
+  doc.defaultView.addEventListener('resize', syncBounds);
+  doc.defaultView.addEventListener('scroll', syncBounds, { passive: true });
+  syncBounds();
   let activeDrag = false;
   const clamp = n => Math.max(0, Math.min(1, n));
 
@@ -84,6 +94,7 @@ export function createGesturePathEditor({ document: doc, store, getSelection }) 
   }
   function render() {
     if (activeDrag) return;
+    syncBounds();
     layer.replaceChildren();
     const selection = getSelection();
     const scene = store.getProject().scenes.find(item => item.id === selection?.sceneId);
