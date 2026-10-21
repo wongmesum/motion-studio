@@ -1559,17 +1559,33 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
     assert.equal(await handles.count(), 2);
     // Tap handles overlap; use the destination handle, initially centred.
     const dest = handles.last();
+    await page.evaluate(() => {
+      window.__gesturePointerLog = [];
+      document.getElementById('gesturePathEditor').addEventListener('pointerdown', e => {
+        window.__gesturePointerLog.push(['down', e.target.tagName]);
+      }, true);
+      document.getElementById('gesturePathEditor').addEventListener('pointerup', e => {
+        window.__gesturePointerLog.push(['up', e.target.tagName]);
+      }, true);
+    });
     const origin = await dest.boundingBox();
     assert.ok(origin);
     await page.mouse.move(origin.x + origin.width / 2, origin.y + origin.height / 2);
     await page.mouse.down();
     await page.mouse.move(origin.x + origin.width / 2 + 65, origin.y + origin.height / 2 + 20, { steps: 5 });
     await page.mouse.up();
-    await page.waitForFunction(() => {
+    const debug = await page.evaluate(() => {
       const circle = document.querySelectorAll('#gesturePathEditor circle')[1];
-      return circle && Number(circle.getAttribute('cx')) > 500;
-    }, null, { timeout: PAGE_TIMEOUT_MS });
-    assert.ok(Number(await handles.last().getAttribute('cx')) > 500);
+      const stage = document.getElementById('previewStage');
+      return {
+        cx: circle?.getAttribute('cx'),
+        pointerLog: window.__gesturePointerLog,
+        rect: stage.getBoundingClientRect().toJSON(),
+        svgPointer: getComputedStyle(document.getElementById('gesturePathEditor')).pointerEvents,
+        circlePointer: circle ? getComputedStyle(circle).pointerEvents : null,
+      };
+    });
+    assert.ok(Number(debug.cx) > 500, 'Gesture drag did not persist: ' + JSON.stringify(debug));
   } finally {
     await stack.close();
   }
