@@ -1,4 +1,5 @@
 import path from 'path';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'url';
 import { sanitizeHtml } from '../security/sanitize.js';
 import { isAllowedRenderUrl } from '../security/network-policy.js';
@@ -119,6 +120,28 @@ function injectProjectData(html, dataScript) {
   return `${dataScript}\n${html}`;
 }
 
+
+// Motion Studio embeds only vetted local artwork and a deterministic SVG/Canvas renderer.
+// No remote URLs, arbitrary JSON payloads or third-party scripts enter render HTML.
+async function injectGestureOverlay(html, project) {
+  if (!project.scenes.some((scene) => (scene.gestures || []).length > 0)) return html;
+  const asset = (relative) => new URL(relative, import.meta.url);
+  const [runtime, cursor, burst] = await Promise.all([
+    readFile(asset('../../render-engine/gesture-overlay.js'), 'utf8'),
+    readFile(asset('../../render-engine/lottie/cursor-real-black.json'), 'utf8'),
+    readFile(asset('../../render-engine/lottie/click-sunburst-soft-4-sm.json'), 'utf8'),
+  ]);
+  const artwork = escapeInlineJsonPayload({
+    cursor: JSON.parse(cursor),
+    burst: JSON.parse(burst),
+  });
+  const scripts = '<script type="application/json" id="motion-gesture-art">' + artwork
+    + '</script><script id="motion-gesture-runtime">\n' + runtime + '\n</script>';
+  return /<\/body>/i.test(html)
+    ? html.replace(/<\/body>/i, scripts + '\n</body>')
+    : html + scripts;
+}
+
 function assertTemplateHtml(html) {
   if (typeof html !== 'string' || html.trim().length === 0) {
     throw new Error('Isi template HTML kosong atau tidak valid');
@@ -228,7 +251,8 @@ export async function compileProject(input, {
   const dataScript = buildProjectDataScript(resolved);
   const withData = injectProjectData(baseHtml, dataScript);
   const withBridge = target === 'preview' ? injectPreviewBridge(withData) : withData;
-  const deterministicHtml = sanitizeHtml(withBridge);
+  const withGesture = await injectGestureOverlay(withBridge, resolved);
+  const deterministicHtml = sanitizeHtml(withGesture);
   const warnings = [];
 
   if (!useAiHtml) {
@@ -250,7 +274,8 @@ export async function compileProject(input, {
     const candidateWithBridge = target === 'preview'
       ? injectPreviewBridge(candidateWithData)
       : candidateWithData;
-    const aiHtml = sanitizeHtml(candidateWithBridge);
+    const candidateWithGesture = await injectGestureOverlay(candidateWithBridge, resolved);
+    const aiHtml = sanitizeHtml(candidateWithGesture);
     describeDryRunFailure(await testAiHtml(aiHtml, resolved.render));
     return { html: aiHtml, project: resolved, target, warnings, audioLocalPath };
   } catch (error) {
