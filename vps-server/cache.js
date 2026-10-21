@@ -25,6 +25,7 @@ export function hashJob(job) {
     height: job.height || 1080,
     assets: job.assets || [],
     audio_url: job.audio_url || null,
+    audio_local_path: job.audioLocalPath || null,
     codec: job.codec || 'h264',
     preview: Boolean(job.preview),
   });

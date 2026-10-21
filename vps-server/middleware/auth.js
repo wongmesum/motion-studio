@@ -59,6 +59,37 @@ export async function limiter(req, res, next) {
 }
 
 /**
+ * Limiter tetap untuk endpoint berbiaya seperti upload aset: bucket terpisah dari
+ * `limiter` agar kuota render user tidak ikut terpakai.
+ */
+export function createFixedRateLimiter({ windowMs = WINDOW_MS, maxRequests } = {}) {
+  const max = Number(maxRequests || process.env.RATE_LIMIT_UPLOAD_PER_MIN || 20);
+  const records = new Map();
+
+  return async function fixedRateLimiter(req, res, next) {
+    const key = req.adminActor || req.ip || 'anonymous';
+    const now = Date.now();
+    const record = records.get(key) || { count: 0, resetAt: now + windowMs };
+    if (now > record.resetAt) {
+      record.count = 0;
+      record.resetAt = now + windowMs;
+    }
+    record.count += 1;
+    records.set(key, record);
+
+    res.setHeader('X-RateLimit-Limit', String(max));
+    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - record.count)));
+    if (record.count > max) {
+      return res.status(429).json({
+        error: 'Terlalu banyak permintaan. Coba lagi nanti.',
+        retryAfterMs: record.resetAt - now,
+      });
+    }
+    return next();
+  };
+}
+
+/**
  * Validasi Token API (Header X-Token)
  * Mendukung Master VPS_TOKEN maupun Token per-User dari Manajemen User Admin Dashboard.
  */

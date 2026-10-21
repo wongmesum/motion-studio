@@ -5,6 +5,8 @@ import os from 'os';
 import path from 'path';
 import { getCachedRender, saveRenderToCache } from './cache.js';
 import { prepareAssets, prepareAudioAsset, publishOutput } from './storage.js';
+import { DEFAULT_ROOT_DIR as DEFAULT_UPLOAD_DIR } from './studio/asset-store.js';
+import { validateLocalAudioPath } from './security/audio-policy.js';
 import { runEngineerPipeline } from './deepseek-engineer.js';
 import { logger, metrics, recordRenderDuration } from './logger.js';
 import { resolveFfmpegBinary } from './ffmpeg.js';
@@ -48,6 +50,23 @@ const CODEC_MAP = {
   ],
 };
 
+/**
+ * Builder jobs ship the audio track as a filesystem path resolved from the owner-scoped
+ * asset store. That path crosses a process boundary, so it is re-validated here — trusted
+ * directory, extension, size, and magic bytes — instead of being trusted as given.
+ * Legacy jobs keep using the remote `audio_url` download path.
+ */
+export async function resolveAudioForJob(jobData, {
+  allowedDirectories = [DEFAULT_UPLOAD_DIR],
+  prepareRemoteAudio = prepareAudioAsset,
+} = {}) {
+  if (jobData?.audioLocalPath) {
+    const localPath = await validateLocalAudioPath(jobData.audioLocalPath, { allowedDirectories });
+    return { localPath };
+  }
+  return jobData?.audio_url ? prepareRemoteAudio(jobData.audio_url) : null;
+}
+
 function splitIntoChunks(totalFrames, count) {
   const chunks = [];
   const size = Math.ceil(totalFrames / count);
@@ -70,9 +89,30 @@ async function renderChunk(browser, html, startFrame, endFrame, fps, width, heig
   await page.setContent(html, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(200);
 
+  // Project templates load assets (images, video frames) before the first frame. Waiting
+  // here keeps the first captured frame identical to the rest of the chunk. A timeout is
+  // a failed render, not a degraded one: capturing mid-load would produce frames that
+  // differ between chunks depending on decode speed.
+  await page.evaluate(async () => {
+    if (window.__ASSETS_READY__ && typeof window.__ASSETS_READY__.then === 'function') {
+      await Promise.race([
+        window.__ASSETS_READY__,
+        new Promise((_resolve, reject) => setTimeout(
+          () => reject(new Error('Waktu tunggu aset habis')),
+          30000
+        )),
+      ]);
+    }
+  });
+
   for (let i = startFrame; i < endFrame; i++) {
     const t = i / fps;
-    await page.evaluate((time) => {
+    await page.evaluate(async (time) => {
+      // Seek first: templates draw from the media element, so drawing before the seek
+      // resolves would capture the previous video frame.
+      if (typeof window.__AWAIT_FRAME__ === 'function') {
+        await window.__AWAIT_FRAME__(time);
+      }
       if (typeof window.renderFrame === 'function') {
         window.renderFrame(time);
       }
@@ -200,7 +240,7 @@ export async function renderJob(jobId, jobData, onProgress = () => {}) {
   onProgress({ status: 'preparing_assets', progress: 8 });
   const [preparedAssets, preparedAudio] = await Promise.all([
     prepareAssets(jobData.assets || [], width, height),
-    jobData.audio_url ? prepareAudioAsset(jobData.audio_url) : null,
+    resolveAudioForJob(jobData),
   ]);
 
   // Ganti URL remote di HTML dengan path file lokal yang sudah di-cache jika ada
@@ -213,8 +253,10 @@ export async function renderJob(jobId, jobData, onProgress = () => {}) {
   }
 
   // 3. DeepSeek 5-Stage Render Engineer Gate
+  // Builder jobs set skipEngineer:true — compiler already produced validated HTML, and
+  // rewriting it here could silently change output between preview and render.
   let engineerReport = null;
-  if (process.env.DEEPSEEK_ENABLED !== 'false') {
+  if (process.env.DEEPSEEK_ENABLED !== 'false' && jobData.skipEngineer !== true) {
     onProgress({ status: 'deepseek_engineering', progress: 15 });
     const engineered = await runEngineerPipeline(
       workingHtml,
