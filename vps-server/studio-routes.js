@@ -73,6 +73,7 @@ const UI_ASSET_CONTENT_TYPES = new Map([
   ['assets-panel.js', 'text/javascript; charset=utf-8'],
   ['timeline.js', 'text/javascript; charset=utf-8'],
   ['inspector.js', 'text/javascript; charset=utf-8'],
+  ['gesture-path-editor.js', 'text/javascript; charset=utf-8'],
   ['preview-frame.js', 'text/javascript; charset=utf-8'],
   ['render-panel.js', 'text/javascript; charset=utf-8'],
   ['project-utils.js', 'text/javascript; charset=utf-8'],

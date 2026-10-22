@@ -18,6 +18,10 @@ export const PROJECT_LIMITS = {
 };
 
 export const ELEMENT_TYPES = Object.freeze(['text', 'image', 'video']);
+export const GESTURE_TYPES = Object.freeze(['tap', 'swipe']);
+export const GESTURE_EFFECTS = Object.freeze(['none', 'sunburst', 'sunburst-soft', 'sunburst-wide', 'sunburst-star']);
+export const GESTURE_EASINGS = Object.freeze(['linear', 'ease-in', 'ease-out', 'ease-in-out']);
+export const MOTION_PRESETS = Object.freeze(['none', 'fade-in', 'slide-up', 'slide-left', 'zoom-in']);
 export const ELEMENT_ROLES = Object.freeze(['title', 'subtitle', 'caption', 'background', 'pip', 'logo']);
 export const TRANSITION_TYPES = Object.freeze(['fade', 'slide', 'none']);
 export const ALIGNMENTS = Object.freeze(['left', 'center', 'right']);
@@ -140,6 +144,53 @@ function normalizeAudio(audio) {
   return { assetId: normalizeAssetId(audio.assetId) };
 }
 
+const MOTION_KEYFRAME_FIELDS = Object.freeze({
+  x: [-600, 600, 0],
+  y: [-600, 600, 0],
+  scale: [0.1, 3, 1],
+  opacity: [0, 1, 1],
+});
+
+function normalizeKeyframes(keyframes, durationSec) {
+  if (!Array.isArray(keyframes) || keyframes.length < 2 || keyframes.length > 8) {
+    throw new Error('Keyframe animasi harus berisi 2 sampai 8 titik');
+  }
+  let previous = -1;
+  return keyframes.map(frame => {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame)) {
+      throw new Error('Keyframe animasi tidak valid');
+    }
+    const timeSec = frame.timeSec;
+    if (typeof timeSec !== 'number' || !Number.isFinite(timeSec) ||
+      timeSec < 0 || timeSec > durationSec || timeSec <= previous) {
+      throw new Error('Waktu keyframe animasi harus berurutan dalam durasi animasi');
+    }
+    previous = timeSec;
+    const clean = { timeSec };
+    for (const [field, [min, max, fallback]] of Object.entries(MOTION_KEYFRAME_FIELDS)) {
+      const value = frame[field] === undefined ? fallback : frame[field];
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+        throw new Error('Nilai keyframe animasi ' + field + ' tidak valid');
+      }
+      clean[field] = value;
+    }
+    return clean;
+  });
+}
+
+function normalizeMotion(motion) {
+  if (motion === undefined || motion === null) return undefined;
+  if (!motion || typeof motion !== 'object' || Array.isArray(motion)) throw new Error('Animasi tidak valid');
+  const preset = normalizeEnum(motion.preset, 'none', MOTION_PRESETS, 'Animasi');
+  const startSec = motion.startSec === undefined ? 0 : motion.startSec;
+  const durationSec = motion.durationSec === undefined ? 0.8 : motion.durationSec;
+  if (typeof startSec !== 'number' || !Number.isFinite(startSec) || startSec < 0 || startSec > 600) throw new Error('Waktu mulai animasi tidak valid');
+  if (typeof durationSec !== 'number' || !Number.isFinite(durationSec) || durationSec <= 0 || durationSec > 60) throw new Error('Durasi animasi tidak valid');
+  const keyframes = motion.keyframes === undefined ? undefined
+    : normalizeKeyframes(motion.keyframes, durationSec);
+  return { preset, startSec, durationSec, ...(keyframes ? { keyframes } : {}) };
+}
+
 function normalizeTextElement(element, textBudget) {
   const text = assertString(element.text ?? '', 'Teks elemen tidak valid', PROJECT_LIMITS.maxTextChars);
   if (textBudget.used + text.length > PROJECT_LIMITS.maxElementTextTotal) {
@@ -165,6 +216,7 @@ function normalizeTextElement(element, textBudget) {
     fontSize,
     color: normalizeColor(element.color, '#f1f5f9', 'teks'),
     align: normalizeEnum(element.align, 'left', ALIGNMENTS, 'Align'),
+    ...(element.motion == null ? {} : { motion: normalizeMotion(element.motion) }),
   };
 }
 
@@ -179,6 +231,7 @@ function normalizeVisualElement(element, type) {
     x: normalizeUnit(element.x, 0, 'x'),
     y: normalizeUnit(element.y, 0, 'y'),
     width: normalizeUnit(element.width, 1, 'width'),
+    ...(element.motion == null ? {} : { motion: normalizeMotion(element.motion) }),
     ...(type === 'video'
       ? {
         muted: element.muted === undefined ? true : Boolean(element.muted),
@@ -202,6 +255,59 @@ function normalizeElement(element, textBudget) {
   return normalizeVisualElement(element, type);
 }
 
+function normalizeGestureKeyframes(keyframes, type) {
+  if (keyframes === undefined) return undefined;
+  if (type !== 'swipe' || !Array.isArray(keyframes) || keyframes.length > 4) {
+    throw new Error('Keyframe gesture swipe tidak valid');
+  }
+  let previous = 0;
+  return keyframes.map((frame) => {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame)) {
+      throw new Error('Keyframe gesture tidak valid');
+    }
+    const at = frame.at;
+    if (typeof at !== 'number' || !Number.isFinite(at) || at <= previous || at >= 1) {
+      throw new Error('Urutan waktu keyframe gesture tidak valid');
+    }
+    if (typeof frame.x !== 'number' || typeof frame.y !== 'number') {
+      throw new Error('Koordinat keyframe gesture tidak valid');
+    }
+    previous = at;
+    return {
+      at,
+      x: normalizeUnit(frame.x, undefined, 'keyframe x'),
+      y: normalizeUnit(frame.y, undefined, 'keyframe y'),
+    };
+  });
+}
+
+function normalizeGesture(gesture, sceneDuration) {
+  if (!gesture || typeof gesture !== 'object' || Array.isArray(gesture)) {
+    throw new Error('Gesture tidak valid');
+  }
+  const type = normalizeEnum(gesture.type, 'tap', GESTURE_TYPES, 'Gesture');
+  const effect = normalizeEnum(gesture.effect, type === 'tap' ? 'sunburst' : 'none', GESTURE_EFFECTS, 'Efek gesture');
+  const startSec = gesture.startSec === undefined ? 0 : gesture.startSec;
+  const durationSec = gesture.durationSec === undefined ? Math.min(0.8, sceneDuration) : gesture.durationSec;
+  if (!Number.isFinite(startSec) || startSec < 0 || !Number.isFinite(durationSec)
+    || durationSec <= 0 || durationSec > 60 || startSec + durationSec > sceneDuration + 0.00001) {
+    throw new Error('Timing gesture melebihi durasi scene');
+  }
+  const start = gesture.from && typeof gesture.from === 'object' ? gesture.from : {};
+  const end = gesture.to && typeof gesture.to === 'object' ? gesture.to : {};
+  const keyframes = normalizeGestureKeyframes(gesture.keyframes, type);
+  return {
+    type, effect, startSec, durationSec,
+    ...(gesture.easing === undefined ? {} : {
+      easing: normalizeEnum(gesture.easing, 'ease-out', GESTURE_EASINGS, 'Easing gesture')
+    }),
+    ...(keyframes === undefined ? {} : { keyframes }),
+    from: { x: normalizeUnit(start.x, 0.3, 'gesture from.x'), y: normalizeUnit(start.y, 0.5, 'gesture from.y') },
+    to: { x: normalizeUnit(end.x, type === 'tap' ? normalizeUnit(start.x, 0.3, 'gesture from.x') : 0.7, 'gesture to.x'),
+      y: normalizeUnit(end.y, normalizeUnit(start.y, 0.5, 'gesture from.y'), 'gesture to.y') },
+  };
+}
+
 function normalizeScene(scene, textBudget) {
   const elements = Array.isArray(scene?.elements) ? scene.elements : [];
   if (elements.length > PROJECT_LIMITS.maxElementsPerScene) {
@@ -216,11 +322,26 @@ function normalizeScene(scene, textBudget) {
     throw new Error('Durasi scene tidak valid');
   }
 
+  // Check normalized values, not the partially specified caller object: both
+  // startSec and durationSec may be omitted and defaulted by normalizeMotion.
+  const normalizedElements = elements.map((element) => normalizeElement(element, textBudget));
+  for (const element of normalizedElements) {
+    if (element.motion &&
+      element.motion.startSec + element.motion.durationSec > durationSec + 0.00001) {
+      throw new Error('Animasi elemen melebihi durasi scene');
+    }
+  }
+  if (scene?.gestures !== undefined && !Array.isArray(scene.gestures)) {
+    throw new Error('Daftar gesture tidak valid');
+  }
+  const gestures = scene?.gestures || [];
+  if (gestures.length > 6) throw new Error('Gesture per scene maksimal 6');
   return {
     id: normalizeId(scene?.id, SCENE_ID_PATTERN, 'scn'),
+    ...(gestures.length ? { gestures: gestures.map((gesture) => normalizeGesture(gesture, durationSec)) } : {}),
     durationSec,
     transition: normalizeTransition(scene?.transition),
-    elements: elements.map((element) => normalizeElement(element, textBudget)),
+    elements: normalizedElements,
   };
 }
 

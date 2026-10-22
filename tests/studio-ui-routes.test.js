@@ -37,6 +37,7 @@ async function makeAssetsDir() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'motion-ui-assets-'));
   await fs.writeFile(path.join(dir, 'style.css'), 'body { color: #000; }');
   await fs.writeFile(path.join(dir, 'main.js'), 'console.log("studio");');
+  await fs.writeFile(path.join(dir, 'gesture-path-editor.js'), 'export function createGesturePathEditor() {}');
   await fs.writeFile(path.join(dir, 'server.js'), 'TOP SECRET');
   return dir;
 }
@@ -59,6 +60,10 @@ test('ui route serves only allowlisted filenames with explicit types', async (co
   assert.equal(js.status, 200);
   assert.match(js.headers.get('content-type'), /^text\/javascript/);
   assert.equal(js.headers.get('cache-control'), 'no-cache');
+
+  const gesture = await fetch(`${stack.baseUrl}/api/studio/ui/gesture-path-editor.js`);
+  assert.equal(gesture.status, 200);
+  assert.match(await gesture.text(), /createGesturePathEditor/);
 });
 
 test('ui route rejects unknown filenames with 404', async (context) => {

@@ -1,4 +1,5 @@
 import path from 'path';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'url';
 import { sanitizeHtml } from '../security/sanitize.js';
 import { isAllowedRenderUrl } from '../security/network-policy.js';
@@ -119,6 +120,62 @@ function injectProjectData(html, dataScript) {
   return `${dataScript}\n${html}`;
 }
 
+
+// Shared deterministic motion math is embedded before template scripts execute.
+// This avoids network dependencies and makes preview/render use identical easing.
+async function injectMotionPresets(html, project) {
+  if (!project.scenes.some(scene => scene.elements.some(element => element.motion && (element.motion.preset !== 'none' || element.motion.keyframes?.length)))) {
+    return html;
+  }
+  const runtime = await readFile(new URL('../../render-engine/motion-presets.js', import.meta.url), 'utf8');
+  return injectProjectData(html, '<script id="motion-preset-runtime">\n' + runtime + '\n</script>');
+}
+
+// Contain the unchanged 1920x1080 source stage on output sizes that differ
+// from landscape 1080p. This avoids clipping in 9:16 exports and preview.
+async function injectViewportFit(html, project) {
+  if (project.render.width === 1920 && project.render.height === 1080) return html;
+  if (!['base', 'kinetic-text', 'image-slideshow', 'video-mixer'].includes(project.template)) return html;
+  const runtime = await readFile(new URL('../../render-engine/viewport-fit.js', import.meta.url), 'utf8');
+  const script = '<script id="motion-viewport-fit">\n' + runtime + '\n</script>';
+  return /<\/body>/i.test(html)
+    ? html.replace(/<\/body>/i, script + '\n</body>')
+    : html + script;
+}
+
+// Motion Studio embeds only vetted local artwork and a deterministic SVG/Canvas renderer.
+// No remote URLs, arbitrary JSON payloads or third-party scripts enter render HTML.
+async function injectGestureOverlay(html, project) {
+  if (!project.scenes.some((scene) => (scene.gestures || []).length > 0)) return html;
+  const asset = (relative) => new URL(relative, import.meta.url);
+  const [runtime, cursor, burst, burstSoft, burstWide, burstStar, license] = await Promise.all([
+    readFile(asset('../../render-engine/gesture-overlay.js'), 'utf8'),
+    readFile(asset('../../render-engine/lottie/cursor-real-black.json'), 'utf8'),
+    readFile(asset('../../render-engine/lottie/click-sunburst-soft-4-sm.json'), 'utf8'),
+    readFile(asset('../../modules/lottie/assets/click-sunburst-soft-xs.json'), 'utf8'),
+    readFile(asset('../../modules/lottie/assets/click-sunburst-soft.json'), 'utf8'),
+    readFile(asset('../../modules/lottie/assets/click-sunburst.json'), 'utf8'),
+    readFile(asset('../../third-party/claude-remotion-editor/LICENSE'), 'utf8'),
+  ]);
+  const artwork = escapeInlineJsonPayload({
+    cursor: JSON.parse(cursor),
+    burst: JSON.parse(burst),
+    burstSoft: JSON.parse(burstSoft),
+    burstWide: JSON.parse(burstWide),
+    burstStar: JSON.parse(burstStar),
+  });
+  const notice = escapeInlineJsonPayload({
+    source: 'https://github.com/ytrofr/claude-remotion-editor',
+    license,
+  });
+  const scripts = '<script type="application/json" id="motion-gesture-license">' + notice
+    + '</script><script type="application/json" id="motion-gesture-art">' + artwork
+    + '</script><script id="motion-gesture-runtime">\n' + runtime + '\n</script>';
+  return /<\/body>/i.test(html)
+    ? html.replace(/<\/body>/i, scripts + '\n</body>')
+    : html + scripts;
+}
+
 function assertTemplateHtml(html) {
   if (typeof html !== 'string' || html.trim().length === 0) {
     throw new Error('Isi template HTML kosong atau tidak valid');
@@ -228,7 +285,10 @@ export async function compileProject(input, {
   const dataScript = buildProjectDataScript(resolved);
   const withData = injectProjectData(baseHtml, dataScript);
   const withBridge = target === 'preview' ? injectPreviewBridge(withData) : withData;
-  const deterministicHtml = sanitizeHtml(withBridge);
+  const withMotion = await injectMotionPresets(withBridge, resolved);
+  const withViewport = await injectViewportFit(withMotion, resolved);
+  const withGesture = await injectGestureOverlay(withViewport, resolved);
+  const deterministicHtml = sanitizeHtml(withGesture);
   const warnings = [];
 
   if (!useAiHtml) {
@@ -250,7 +310,9 @@ export async function compileProject(input, {
     const candidateWithBridge = target === 'preview'
       ? injectPreviewBridge(candidateWithData)
       : candidateWithData;
-    const aiHtml = sanitizeHtml(candidateWithBridge);
+    const candidateWithMotion = await injectMotionPresets(candidateWithBridge, resolved);
+    const candidateWithGesture = await injectGestureOverlay(candidateWithMotion, resolved);
+    const aiHtml = sanitizeHtml(candidateWithGesture);
     describeDryRunFailure(await testAiHtml(aiHtml, resolved.render));
     return { html: aiHtml, project: resolved, target, warnings, audioLocalPath };
   } catch (error) {

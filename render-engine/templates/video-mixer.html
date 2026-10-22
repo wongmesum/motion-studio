@@ -152,6 +152,7 @@ function drawCards(entry) {
       label: (element.role || element.type).toUpperCase(),
       hue: index === 0 ? 190 : 315,
       media: element.media,
+      motion: element.motion,
     };
   });
 
@@ -211,6 +212,16 @@ function drawMixer(t) {
     ];
 
   cards.forEach((card, idx) => {
+    const motion = window.MotionStudioMotion
+      ? window.MotionStudioMotion.evaluate(card.motion, localT)
+      : { opacity: 1, offsetX: 0, offsetY: 0, scale: 1 };
+    ctx.save();
+    ctx.globalAlpha *= motion.opacity;
+    const pivotX = card.x + card.w / 2;
+    const pivotY = card.y + card.h / 2;
+    ctx.translate(pivotX + motion.offsetX, pivotY + motion.offsetY);
+    ctx.scale(motion.scale, motion.scale);
+    ctx.translate(-pivotX, -pivotY);
     const floatY = Math.sin(localT * 2 + idx * 1.5) * 12;
     const y = card.y + floatY;
 
@@ -267,6 +278,7 @@ function drawMixer(t) {
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '700 20px monospace';
     ctx.fillText(card.label, card.x + 24, y + 34);
+    ctx.restore();
   });
   ctx.restore();
 
@@ -297,12 +309,19 @@ function drawMixer(t) {
     : 32;
   ctx.fillStyle = bannerColor;
   ctx.font = `800 ${bannerSize}px Inter, sans-serif`;
+  const titleMotion = window.MotionStudioMotion
+    ? window.MotionStudioMotion.evaluate(title && title.motion, localT)
+    : { opacity: 1, offsetX: 0, offsetY: 0, scale: 1 };
+  ctx.save();
+  ctx.globalAlpha *= titleMotion.opacity;
   ctx.textAlign = title && title.align ? title.align : 'center';
+  ctx.translate(W / 2 + titleMotion.offsetX, H - 48 + titleMotion.offsetY);
+  ctx.scale(titleMotion.scale, titleMotion.scale);
   ctx.fillText(
     (title && title.text) || 'CANVAS 2D MULTI-TRACK MIXER • 1080P 60FPS',
-    W / 2,
-    H - 48
+    0, 0
   );
+  ctx.restore();
   ctx.textAlign = 'left';
 }
 

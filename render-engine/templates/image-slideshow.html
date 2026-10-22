@@ -53,9 +53,11 @@ const PROJECT_SLIDES = (function () {
       titleSize: title ? title.fontSize : null,
       titleColor: title ? title.color : null,
       titleAlign: title ? title.align : null,
+      titleMotion: title ? title.motion : null,
       subtitleSize: subtitle ? subtitle.fontSize : null,
       subtitleColor: subtitle ? subtitle.color : null,
       subtitleAlign: subtitle ? subtitle.align : null,
+      subtitleMotion: subtitle ? subtitle.motion : null,
       c1: theme.backgroundColor || '#0f172a',
       c2: theme.primaryColor && theme.primaryColor !== '#38bdf8'
         ? theme.primaryColor
@@ -247,13 +249,21 @@ function captionAnchor(align, size) {
   return { x: 150, textAlign: 'left' };
 }
 
-function drawCaptionLine(line, x, y, defaultSize, defaultColor, defaultWeight) {
+function drawCaptionLine(line, x, y, defaultSize, defaultColor, defaultWeight, localT) {
   const size = Number(line.size) > 0 ? Number(line.size) : defaultSize;
   const anchor = captionAnchor(line.align, size);
+  const motion = window.MotionStudioMotion
+    ? window.MotionStudioMotion.evaluate(line.motion, localT)
+    : { opacity: 1, offsetX: 0, offsetY: 0, scale: 1 };
+  ctx.save();
+  ctx.globalAlpha *= motion.opacity;
   ctx.font = defaultWeight + ' ' + size + 'px Inter, sans-serif';
   ctx.textAlign = anchor.textAlign;
   ctx.fillStyle = typeof line.color === 'string' && line.color ? line.color : defaultColor;
-  ctx.fillText(line.text, anchor.x, y);
+  ctx.translate(anchor.x + motion.offsetX, y + motion.offsetY);
+  ctx.scale(motion.scale, motion.scale);
+  ctx.fillText(line.text, 0, 0);
+  ctx.restore();
 }
 
 function drawSlideCaption(slide, progress, alpha, offsetX) {
@@ -261,6 +271,7 @@ function drawSlideCaption(slide, progress, alpha, offsetX) {
   ctx.save();
   ctx.globalAlpha = alpha;
   if (offsetX) ctx.translate(offsetX, 0);
+  const localT = progress * (Number(slide.durationSec) || 4);
   const cardSlide = easeInOutCubic(Math.min(1, progress / 0.6));
   const cardY = H - 230 + (1 - cardSlide) * 60;
 
@@ -273,20 +284,22 @@ function drawSlideCaption(slide, progress, alpha, offsetX) {
   ctx.fillRect(110, cardY, 8, 150);
 
   drawCaptionLine(
-    { text: String(slide.title || ''), size: slide.titleSize, color: slide.titleColor, align: slide.titleAlign },
+    { text: String(slide.title || ''), size: slide.titleSize, color: slide.titleColor, align: slide.titleAlign, motion: slide.titleMotion },
     150,
     cardY + 66,
     44,
     '#ffffff',
-    '800'
+    '800',
+    localT
   );
   drawCaptionLine(
-    { text: String(slide.subtitle || ''), size: slide.subtitleSize, color: slide.subtitleColor, align: slide.subtitleAlign },
+    { text: String(slide.subtitle || ''), size: slide.subtitleSize, color: slide.subtitleColor, align: slide.subtitleAlign, motion: slide.subtitleMotion },
     150,
     cardY + 114,
     26,
     '#cbd5e1',
-    '500'
+    '500',
+    localT
   );
   ctx.restore();
 }

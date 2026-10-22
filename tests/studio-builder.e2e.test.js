@@ -959,6 +959,7 @@ test('project library creates, renames, and deletes projects', async () => {
     );
     await page.click('#openLibraryBtn');
     await page.waitForSelector('#libraryOverlay.visible');
+    await page.getByText('Belum ada project').waitFor({ timeout: PAGE_TIMEOUT_MS });
     assert.match(await page.locator('#libraryList').textContent(), /Belum ada project/);
 
     await page.click('#libraryNewBtn');
@@ -1246,13 +1247,18 @@ test('narrow viewports stack the layout and every icon button has an accessible 
       columns: getComputedStyle(document.querySelector('.builder-shell')).gridTemplateColumns
         .split(' ').length,
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      offenders: [...document.querySelectorAll('body *')].map((el) => ({
+        tag: el.tagName.toLowerCase(), cls: String(el.className).slice(0, 80), id: el.id,
+        right: Math.round(el.getBoundingClientRect().right),
+        left: Math.round(el.getBoundingClientRect().left),
+      })).filter((el) => el.right > innerWidth + 1 || el.left < -1).slice(0, 15),
       unnamedIcons: [...document.querySelectorAll('.icon-btn')]
         .filter((button) => !button.getAttribute('aria-label'))
         .map((button) => button.id),
     }));
 
     assert.equal(layout.columns, 1, 'narrow screens stack into a single column');
-    assert.ok(layout.overflow <= 1, `page overflows horizontally by ${layout.overflow}px`);
+    assert.ok(layout.overflow <= 1, `page overflows horizontally by ${layout.overflow}px: ${JSON.stringify(layout.offenders)}`);
     assert.deepEqual(layout.unnamedIcons, [], 'icon-only buttons must expose a name');
   } finally {
     await stack.close();
@@ -1533,4 +1539,164 @@ test('logout returns to the login overlay and stops job polling', async () => {
   } finally {
     await stack.close();
   }
+});
+
+
+test('gesture path editor drags a cursor waypoint and preserves scene data', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.click('#addSceneBtn');
+    const add = page.getByRole('button', { name: '+ Tambah gesture' });
+    await add.click();
+    const handles = page.locator('#gesturePathEditor .gesture-handle');
+    await handles.first().waitFor({ timeout: PAGE_TIMEOUT_MS });
+    assert.equal(await handles.count(), 2);
+    assert.equal(await page.evaluate(() =>
+      document.getElementById('gesturePathEditor').parentElement.id
+    ), 'previewStage', 'gesture handles must share the preview stage coordinate system');
+    // Make the preview visible after interacting with the inspector below it.
+    await page.locator('#previewStage').scrollIntoViewIfNeeded();
+    const dest = handles.last();
+    await page.evaluate(() => {
+      window.__gesturePointerLog = [];
+      document.getElementById('gesturePathEditor').addEventListener('pointerdown', e => {
+        window.__gesturePointerLog.push(['down', e.target.tagName]);
+      }, true);
+      document.getElementById('gesturePathEditor').addEventListener('pointerup', e => {
+        window.__gesturePointerLog.push(['up', e.target.tagName]);
+      }, true);
+    });
+    const origin = await dest.boundingBox();
+    assert.ok(origin);
+    const center = { x: origin.x + origin.width / 2, y: origin.y + origin.height / 2 };
+    const hit = await page.evaluate(point => {
+      const el = document.elementFromPoint(point.x, point.y);
+      return {
+        tag: el?.tagName, id: el?.id, cls: typeof el?.className === 'string' ? el.className : '',
+        html: el?.outerHTML?.slice(0, 250),
+        viewport: { width: innerWidth, height: innerHeight },
+      };
+    }, center);
+    await page.mouse.move(origin.x + origin.width / 2, origin.y + origin.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(origin.x + origin.width / 2 + 65, origin.y + origin.height / 2 + 20, { steps: 5 });
+    await page.mouse.up();
+    const debug = await page.evaluate(() => {
+      const circle = document.querySelectorAll('#gesturePathEditor .gesture-handle')[1];
+      const stage = document.getElementById('previewStage');
+      return {
+        cx: circle?.style.left,
+        pointerLog: window.__gesturePointerLog,
+        rect: stage.getBoundingClientRect().toJSON(),
+        svgPointer: getComputedStyle(document.getElementById('gesturePathEditor')).pointerEvents,
+        circlePointer: circle ? getComputedStyle(circle).pointerEvents : null,
+      };
+    });
+    assert.ok(parseFloat(debug.cx) > 50, 'Gesture drag did not persist: ' + JSON.stringify({ ...debug, hit, center, origin }));
+  } finally {
+    await stack.close();
+  }
+});
+
+
+test('inspector creates and exports editable motion path keyframes', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.fill('#promptInput', 'promo');
+    await page.click('#generateBtn');
+    await page.waitForSelector('#promptChoice:not([hidden])', { timeout: PAGE_TIMEOUT_MS });
+    await page.click('#promptReplaceBtn');
+    await page.waitForSelector('.element-row', { timeout: PAGE_TIMEOUT_MS });
+    await page.click('.element-row');
+    await page.getByRole('button', { name: '+ Buat motion path' }).click();
+    await page.getByRole('button', { name: '+ Tambah keyframe' }).click();
+    assert.equal(await page.locator('#inspectorForm fieldset').count(), 3);
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: PAGE_TIMEOUT_MS }),
+      page.click('#exportProjectBtn')
+    ]);
+    const exported = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+    const motion = exported.scenes[0].elements.find(el => el.type === 'text')?.motion;
+    assert.equal(motion?.preset, 'none');
+    assert.equal(motion?.keyframes.length, 3);
+    assert.ok(motion.keyframes[0].timeSec < motion.keyframes[1].timeSec);
+    assert.ok(motion.keyframes[1].timeSec < motion.keyframes[2].timeSec);
+  } finally {
+    await stack.close();
+  }
+});
+
+test('gesture swipe keyframe has a draggable editor handle and exports its coordinates', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.click('#addSceneBtn');
+    await page.getByRole('button', { name: '+ Tambah gesture' }).click();
+    await page.locator('#inspectorForm select:has(option[value="swipe"])').first().selectOption('swipe');
+    await page.getByRole('button', { name: '+ Tambah keyframe' }).click();
+    const handle = page.getByRole('button', { name: 'Gesture 1 keyframe 1' });
+    await handle.waitFor({ timeout: PAGE_TIMEOUT_MS });
+    assert.equal(await page.locator('#gesturePathEditor .gesture-handle').count(), 3);
+    await page.locator('#previewStage').scrollIntoViewIfNeeded();
+    const box = await handle.boundingBox();
+    assert.ok(box, 'Keyframe handle not visible');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 45, box.y + box.height / 2 - 20, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForFunction(() => {
+      const handle = document.querySelector('[aria-label="Gesture 1 keyframe 1"]');
+      return handle && Number.parseFloat(handle.style.left) > 62.5;
+    }, null, { timeout: PAGE_TIMEOUT_MS });
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: PAGE_TIMEOUT_MS }),
+      page.click('#exportProjectBtn')
+    ]);
+    const exported = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+    const keyframe = exported.scenes[0].gestures[0].keyframes[0];
+    assert.equal(keyframe.at, 0.5);
+    assert.ok(keyframe.x > 0.625, 'dragged keyframe was not persisted to project JSON');
+  } finally { await stack.close(); }
+});
+
+test('portrait output selection updates preview stage ratio without horizontal overflow', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.click('#addSceneBtn');
+    await page.selectOption('#renderResolution', '1080x1920');
+    await page.waitForFunction(() => {
+      const stage = document.getElementById('previewStage');
+      return stage.classList.contains('portrait') && stage.style.aspectRatio === '1080 / 1920';
+    }, null, { timeout: PAGE_TIMEOUT_MS });
+    const dims = await page.evaluate(() => {
+      const rect = document.getElementById('previewStage').getBoundingClientRect();
+      return { ratio: rect.width / rect.height, overflow: document.documentElement.scrollWidth - innerWidth };
+    });
+    assert.ok(Math.abs(dims.ratio - 9 / 16) < 0.015, 'portrait preview ratio mismatch');
+    assert.ok(dims.overflow <= 1, 'portrait selection overflowed the editor');
+  } finally { await stack.close(); }
 });

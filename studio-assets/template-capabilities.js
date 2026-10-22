@@ -20,25 +20,25 @@ const TEXT_CAPABILITY = Object.freeze({
 
 const CAPABILITIES = Object.freeze({
   base: Object.freeze({
-    text: TEXT_CAPABILITY,
+    text: Object.freeze({ ...TEXT_CAPABILITY, motion: true }),
     image: TEXT_ONLY_VISUAL,
     video: TEXT_ONLY_VISUAL,
   }),
   'kinetic-text': Object.freeze({
-    text: TEXT_CAPABILITY,
+    text: Object.freeze({ ...TEXT_CAPABILITY, motion: true }),
     image: TEXT_ONLY_VISUAL,
     video: TEXT_ONLY_VISUAL,
   }),
   'image-slideshow': Object.freeze({
-    text: TEXT_CAPABILITY,
+    text: Object.freeze({ ...TEXT_CAPABILITY, motion: true }),
     image: SLIDE_VISUAL,
     // The slideshow only draws `type: 'image'` backgrounds; a video element is ignored.
     video: TEXT_ONLY_VISUAL,
   }),
   'video-mixer': Object.freeze({
-    text: TEXT_CAPABILITY,
-    image: MIXER_VISUAL,
-    video: MIXER_VISUAL,
+    text: Object.freeze({ ...TEXT_CAPABILITY, motion: true }),
+    image: Object.freeze({ ...MIXER_VISUAL, motion: true }),
+    video: Object.freeze({ ...MIXER_VISUAL, motion: true }),
   }),
 });
 

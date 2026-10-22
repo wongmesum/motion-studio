@@ -12,6 +12,7 @@ import { createAssetsPanel } from './assets-panel.js';
 import { createAutosave } from './autosave.js';
 import { setButtonIcon } from './icons.js';
 import { createInspector } from './inspector.js';
+import { createGesturePathEditor } from './gesture-path-editor.js';
 import { createPreviewFrame } from './preview-frame.js';
 import { downloadProject, importProjectFile } from './project-io.js';
 import { createProjectLibrary } from './project-library.js';
@@ -120,13 +121,17 @@ const assetsPanel = createAssetsPanel({
 });
 
 const inspector = createInspector({ document: doc, store, assetsPanel, notify });
+const gesturePathEditor = createGesturePathEditor({ document: doc, store, getSelection: () => inspector.getSelection() });
 
 const timeline = createTimeline({
   document: doc,
   store,
   notify,
   bindAsset: (sceneId, assetId) => inspector.bindAsset(sceneId, assetId),
-  onSelectionChanged: (selection) => inspector.select(selection),
+  onSelectionChanged: (selection) => {
+    inspector.select(selection);
+    gesturePathEditor.render();
+  },
 });
 
 const preview = createPreviewFrame({
@@ -234,6 +239,7 @@ store.subscribe((project) => {
   applyProjectToControls(project);
   timeline.render(project);
   inspector.render();
+  gesturePathEditor.render();
   preview.scheduleCompile();
   if (authenticated && !suppressAutosave) autosave.markDirty();
 });
@@ -341,6 +347,30 @@ titleInput.addEventListener('input', () => {
 templateSelect.addEventListener('change', () => {
   store.update(() => ({ template: templateSelect.value }));
 });
+// Render settings are part of the persisted project, not presentation-only selects.
+// Updating the store also triggers preview recompile, aspect ratio and autosave.
+doc.getElementById('renderResolution').addEventListener('change', event => {
+  const match = /^(\d+)x(\d+)$/.exec(event.target.value);
+  if (!match) return;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  store.update(project => ({
+    render: { ...project.render, width, height }
+  }));
+});
+
+doc.getElementById('renderFps').addEventListener('change', event => {
+  const fps = Number(event.target.value);
+  if (![24, 30, 60].includes(fps)) return;
+  store.update(project => ({ render: { ...project.render, fps } }));
+});
+
+doc.getElementById('renderCodec').addEventListener('change', event => {
+  const codec = event.target.value;
+  if (!['h264', 'h265', 'av1'].includes(codec)) return;
+  store.update(project => ({ render: { ...project.render, codec } }));
+});
+
 
 saveBtn.addEventListener('click', saveCurrentProject);
 exportProjectBtn.addEventListener('click', () => {

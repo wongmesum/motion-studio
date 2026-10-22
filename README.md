@@ -4,6 +4,9 @@
 
 Project produksi untuk membuat **Motion Graphics 1080p @ 60fps** secara deterministik menggunakan **JavaScript, Playwright + Chromium Headless, Canvas 2D, GSAP via CDN, Sharp, dan FFmpeg**, diorkestrasi dari **ChatGPT (via MCP)** dengan **Higgsfield AI** sebagai generator asset dan **DeepSeek Render Engineer** sebagai 5-Stage Automated Quality Gate di dalam VPS.
 
+Gesture overlays use geometry from three bundled Lottie assets with local animation.
+Two additional assets are catalog entries only. See [supported features and asset attribution](docs/gesture-lottie.md).
+
 ---
 
 ## 🗺️ Peta Arsitektur & 5 Pilar Stack
