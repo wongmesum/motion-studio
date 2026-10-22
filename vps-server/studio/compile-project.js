@@ -124,7 +124,7 @@ function injectProjectData(html, dataScript) {
 // Shared deterministic motion math is embedded before template scripts execute.
 // This avoids network dependencies and makes preview/render use identical easing.
 async function injectMotionPresets(html, project) {
-  if (!project.scenes.some(scene => scene.elements.some(element => element.motion && element.motion.preset !== 'none'))) {
+  if (!project.scenes.some(scene => scene.elements.some(element => element.motion && (element.motion.preset !== 'none' || element.motion.keyframes?.length)))) {
     return html;
   }
   const runtime = await readFile(new URL('../../render-engine/motion-presets.js', import.meta.url), 'utf8');
