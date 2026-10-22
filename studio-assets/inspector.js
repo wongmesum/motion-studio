@@ -341,8 +341,15 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
     if (element.type === 'text') textFields(elementGroup, scene, element);
     else visualFields(elementGroup, scene, element, project.template);
 
-    if (element.type === 'text' && ['title', 'subtitle', 'caption'].includes(element.role)
-      && supportsProperty(project.template, 'text', 'motion')) {
+    // Only show controls when a template has a corresponding playback path.
+    // The mixer renders title text and PiP media, but not subtitle/caption text.
+    const motionRenderable = supportsProperty(project.template, element.type, 'motion') &&
+      (element.type !== 'text' || (
+        project.template === 'video-mixer'
+          ? element.role === 'title'
+          : ['title', 'subtitle', 'caption'].includes(element.role)
+      ));
+    if (motionRenderable) {
       const motionHeading = doc.createElement('h3');
       motionHeading.textContent = 'Animasi elemen';
       elementGroup.append(motionHeading);
