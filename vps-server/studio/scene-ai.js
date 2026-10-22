@@ -15,7 +15,7 @@ Use this shape:
   "scenes": [{
     "durationSec": number,
     "transition": { "type": "fade" | "slide" | "none", "durationSec": number },
-    "gestures": [{ "type": "tap" | "swipe", "effect": "none" | "sunburst" | "sunburst-soft",
+    "gestures": [{ "type": "tap" | "swipe", "effect": "none" | "sunburst" | "sunburst-soft" | "sunburst-wide" | "sunburst-star",
       "startSec": number, "durationSec": number,
       "from": { "x": number, "y": number }, "to": { "x": number, "y": number } }],
     "elements": [{
@@ -27,7 +27,7 @@ Use this shape:
     }]
   }]
 }
-Text elements may omit assetId. Image and video elements should only use asset IDs explicitly included in the user prompt; otherwise use text placeholders. Keep all user-visible copy in Indonesian unless requested otherwise. Motion presets work on text title/subtitle/caption in base, kinetic-text and image-slideshow; in video-mixer they work on text title and image/video media cards. Use preset motion only for these supported roles and templates; do not put motion on unsupported elements. startSec + durationSec must not exceed the scene duration. Use only the documented preset names, with positive durations. When user requests a cursor, tap, click, or swipe, use scene-level gestures (up to 6 per scene). Coordinates must be 0..1, startSec + durationSec <= scene duration. Otherwise omit gestures. Maximum 20 scenes and 20 elements per scene.`;
+Text elements may omit assetId. Image and video elements should only use asset IDs explicitly included in the user prompt; otherwise use text placeholders. Keep all user-visible copy in Indonesian unless requested otherwise. Motion presets work on text title/subtitle/caption in base, kinetic-text and image-slideshow; in video-mixer they work on text title and image/video media cards. Use preset motion only for these supported roles and templates; do not put motion on unsupported elements. startSec + durationSec must not exceed the scene duration. Use only the documented preset names, with positive durations. When user requests a cursor, tap, click, or swipe, use scene-level gestures (up to 6 per scene). Coordinates must be 0..1, startSec + durationSec <= scene duration. For a swipe, optionally use easing (linear, ease-in, ease-out, ease-in-out) and up to 4 intermediate keyframes in strictly increasing {at:0..1 exclusive,x:0..1,y:0..1} order; taps must not have keyframes. Otherwise omit gestures. Maximum 20 scenes and 20 elements per scene.`;
 
 export class PromptUnavailableError extends Error {
   constructor(message = 'Provider AI belum dikonfigurasi') {
