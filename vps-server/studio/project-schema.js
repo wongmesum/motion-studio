@@ -143,6 +143,40 @@ function normalizeAudio(audio) {
   return { assetId: normalizeAssetId(audio.assetId) };
 }
 
+const MOTION_KEYFRAME_FIELDS = Object.freeze({
+  x: [-600, 600, 0],
+  y: [-600, 600, 0],
+  scale: [0.1, 3, 1],
+  opacity: [0, 1, 1],
+});
+
+function normalizeKeyframes(keyframes, durationSec) {
+  if (!Array.isArray(keyframes) || keyframes.length < 2 || keyframes.length > 8) {
+    throw new Error('Keyframe animasi harus berisi 2 sampai 8 titik');
+  }
+  let previous = -1;
+  return keyframes.map(frame => {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame)) {
+      throw new Error('Keyframe animasi tidak valid');
+    }
+    const timeSec = frame.timeSec;
+    if (typeof timeSec !== 'number' || !Number.isFinite(timeSec) ||
+      timeSec < 0 || timeSec > durationSec || timeSec <= previous) {
+      throw new Error('Waktu keyframe animasi harus berurutan dalam durasi animasi');
+    }
+    previous = timeSec;
+    const clean = { timeSec };
+    for (const [field, [min, max, fallback]] of Object.entries(MOTION_KEYFRAME_FIELDS)) {
+      const value = frame[field] === undefined ? fallback : frame[field];
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+        throw new Error('Nilai keyframe animasi ' + field + ' tidak valid');
+      }
+      clean[field] = value;
+    }
+    return clean;
+  });
+}
+
 function normalizeMotion(motion) {
   if (motion === undefined || motion === null) return undefined;
   if (!motion || typeof motion !== 'object' || Array.isArray(motion)) throw new Error('Animasi tidak valid');
@@ -151,7 +185,9 @@ function normalizeMotion(motion) {
   const durationSec = motion.durationSec === undefined ? 0.8 : motion.durationSec;
   if (typeof startSec !== 'number' || !Number.isFinite(startSec) || startSec < 0 || startSec > 600) throw new Error('Waktu mulai animasi tidak valid');
   if (typeof durationSec !== 'number' || !Number.isFinite(durationSec) || durationSec <= 0 || durationSec > 60) throw new Error('Durasi animasi tidak valid');
-  return { preset, startSec, durationSec };
+  const keyframes = motion.keyframes === undefined ? undefined
+    : normalizeKeyframes(motion.keyframes, durationSec);
+  return { preset, startSec, durationSec, ...(keyframes ? { keyframes } : {}) };
 }
 
 function normalizeTextElement(element, textBudget) {
