@@ -1557,7 +1557,8 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
     const handles = page.locator('#gesturePathEditor .gesture-handle');
     await handles.first().waitFor({ timeout: PAGE_TIMEOUT_MS });
     assert.equal(await handles.count(), 2);
-    // Tap handles overlap; use the destination handle, initially centred.
+    // Make the preview visible after interacting with the inspector below it.
+    await page.locator('#previewStage').scrollIntoViewIfNeeded();
     const dest = handles.last();
     await page.evaluate(() => {
       window.__gesturePointerLog = [];
@@ -1646,11 +1647,12 @@ test('gesture swipe keyframe has a draggable editor handle and exports its coord
     );
     await page.click('#addSceneBtn');
     await page.getByRole('button', { name: '+ Tambah gesture' }).click();
-    await page.getByLabel('Aksi', { exact: true }).selectOption('swipe');
+    await page.locator('#inspectorForm select:has(option[value="swipe"])').first().selectOption('swipe');
     await page.getByRole('button', { name: '+ Tambah keyframe' }).click();
     const handle = page.getByRole('button', { name: 'Gesture 1 keyframe 1' });
     await handle.waitFor({ timeout: PAGE_TIMEOUT_MS });
     assert.equal(await page.locator('#gesturePathEditor .gesture-handle').count(), 3);
+    await page.locator('#previewStage').scrollIntoViewIfNeeded();
     const box = await handle.boundingBox();
     assert.ok(box, 'Keyframe handle not visible');
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
