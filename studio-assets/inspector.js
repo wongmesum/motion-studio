@@ -215,7 +215,7 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
       group.append(heading);
       for (const [key, labelText, choices] of [
         ['type', 'Aksi', ['tap', 'swipe']],
-        ['effect', 'Efek Lottie', ['none', 'sunburst']],
+        ['effect', 'Efek Lottie', ['none', 'sunburst', 'sunburst-soft']],
       ]) {
         const widget = select(doc, gesture[key], choices);
         widget.addEventListener('change', () => updateGesture(index, { [key]: widget.value }));
