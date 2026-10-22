@@ -137,9 +137,9 @@ async function injectViewportFit(html, project) {
   if (project.render.width === 1920 && project.render.height === 1080) return html;
   if (!['base', 'kinetic-text', 'image-slideshow', 'video-mixer'].includes(project.template)) return html;
   const runtime = await readFile(new URL('../../render-engine/viewport-fit.js', import.meta.url), 'utf8');
-  const script = '<script id="motion-viewport-fit">\\n' + runtime + '\\n</script>';
-  return /<\\/body>/i.test(html)
-    ? html.replace(/<\\/body>/i, script + '\\n</body>')
+  const script = '<script id="motion-viewport-fit">\n' + runtime + '\n</script>';
+  return /<\/body>/i.test(html)
+    ? html.replace(/<\/body>/i, script + '\n</body>')
     : html + script;
 }
 
