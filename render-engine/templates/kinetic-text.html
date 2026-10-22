@@ -375,7 +375,7 @@ function applyKineticMotion(scene, localT) {
   if (!engine || !scene) return;
   for (const [role, id] of [['title', 'glitchWrap'], ['caption', 'kicker'], ['subtitle', 'subBar']]) {
     const element = sceneElement(scene, role);
-    if (!element || !element.motion || element.motion.preset === 'none') continue;
+    if (!element || !element.motion || (element.motion.preset === 'none' && !element.motion.keyframes)) continue;
     const node = document.getElementById(id);
     const state = engine.evaluate(element.motion, localT);
     // Finished presets must not alter the template's legacy compositing.
