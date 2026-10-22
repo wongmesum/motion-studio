@@ -19,7 +19,8 @@ export const PROJECT_LIMITS = {
 
 export const ELEMENT_TYPES = Object.freeze(['text', 'image', 'video']);
 export const GESTURE_TYPES = Object.freeze(['tap', 'swipe']);
-export const GESTURE_EFFECTS = Object.freeze(['none', 'sunburst', 'sunburst-soft']);
+export const GESTURE_EFFECTS = Object.freeze(['none', 'sunburst', 'sunburst-soft', 'sunburst-wide', 'sunburst-star']);
+export const GESTURE_EASINGS = Object.freeze(['linear', 'ease-in', 'ease-out', 'ease-in-out']);
 export const MOTION_PRESETS = Object.freeze(['none', 'fade-in', 'slide-up', 'slide-left', 'zoom-in']);
 export const ELEMENT_ROLES = Object.freeze(['title', 'subtitle', 'caption', 'background', 'pip', 'logo']);
 export const TRANSITION_TYPES = Object.freeze(['fade', 'slide', 'none']);
@@ -254,6 +255,29 @@ function normalizeElement(element, textBudget) {
   return normalizeVisualElement(element, type);
 }
 
+function normalizeGestureKeyframes(keyframes, type) {
+  if (keyframes === undefined) return undefined;
+  if (type !== 'swipe' || !Array.isArray(keyframes) || keyframes.length > 4) {
+    throw new Error('Keyframe gesture swipe tidak valid');
+  }
+  let previous = 0;
+  return keyframes.map((frame) => {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame)) {
+      throw new Error('Keyframe gesture tidak valid');
+    }
+    const at = frame.at;
+    if (typeof at !== 'number' || !Number.isFinite(at) || at <= previous || at >= 1) {
+      throw new Error('Urutan waktu keyframe gesture tidak valid');
+    }
+    previous = at;
+    return {
+      at,
+      x: normalizeUnit(frame.x, undefined, 'keyframe x'),
+      y: normalizeUnit(frame.y, undefined, 'keyframe y'),
+    };
+  });
+}
+
 function normalizeGesture(gesture, sceneDuration) {
   if (!gesture || typeof gesture !== 'object' || Array.isArray(gesture)) {
     throw new Error('Gesture tidak valid');
@@ -268,8 +292,13 @@ function normalizeGesture(gesture, sceneDuration) {
   }
   const start = gesture.from && typeof gesture.from === 'object' ? gesture.from : {};
   const end = gesture.to && typeof gesture.to === 'object' ? gesture.to : {};
+  const keyframes = normalizeGestureKeyframes(gesture.keyframes, type);
   return {
     type, effect, startSec, durationSec,
+    ...(gesture.easing === undefined ? {} : {
+      easing: normalizeEnum(gesture.easing, 'ease-out', GESTURE_EASINGS, 'Easing gesture')
+    }),
+    ...(keyframes === undefined ? {} : { keyframes }),
     from: { x: normalizeUnit(start.x, 0.3, 'gesture from.x'), y: normalizeUnit(start.y, 0.5, 'gesture from.y') },
     to: { x: normalizeUnit(end.x, type === 'tap' ? normalizeUnit(start.x, 0.3, 'gesture from.x') : 0.7, 'gesture to.x'),
       y: normalizeUnit(end.y, normalizeUnit(start.y, 0.5, 'gesture from.y'), 'gesture to.y') },
