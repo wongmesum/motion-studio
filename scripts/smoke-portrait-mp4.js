@@ -41,7 +41,7 @@ try {
   const output = path.join(dir, 'portrait.mp4');
   await fs.writeFile(template, html);
   await command(process.execPath, [
-    path.resolve('render.js'), '--template', template, '--duration', '1', '--fps', '8',
+    path.resolve('render.js'), '--template', template, '--duration', '1', '--fps', '4',
     '--width', '1080', '--height', '1920', '--parallel', '1', '--quality', '65',
     '--preset', 'ultrafast', '--output', output, '--framesDir', path.join(dir, 'frames')
   ]);
@@ -54,6 +54,11 @@ try {
   if (stream?.codec_name !== 'h264' || stream?.width !== 1080 || stream?.height !== 1920
     || Number(stream?.nb_frames) !== 4) {
     throw new Error('Unexpected MP4 stream: ' + JSON.stringify(stream));
+  }
+  if (process.env.MOTION_QA_OUTPUT_DIR) {
+    const qaDir = path.resolve(process.env.MOTION_QA_OUTPUT_DIR);
+    await fs.mkdir(qaDir, { recursive: true });
+    await fs.copyFile(output, path.join(qaDir, 'portrait-1080x1920.mp4'));
   }
   console.log('MP4 smoke successful: H264 1080x1920, 4 frames');
 } finally {
