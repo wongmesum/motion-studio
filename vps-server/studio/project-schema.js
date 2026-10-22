@@ -269,6 +269,9 @@ function normalizeGestureKeyframes(keyframes, type) {
     if (typeof at !== 'number' || !Number.isFinite(at) || at <= previous || at >= 1) {
       throw new Error('Urutan waktu keyframe gesture tidak valid');
     }
+    if (typeof frame.x !== 'number' || typeof frame.y !== 'number') {
+      throw new Error('Koordinat keyframe gesture tidak valid');
+    }
     previous = at;
     return {
       at,
