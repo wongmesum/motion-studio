@@ -1557,6 +1557,9 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
     const handles = page.locator('#gesturePathEditor .gesture-handle');
     await handles.first().waitFor({ timeout: PAGE_TIMEOUT_MS });
     assert.equal(await handles.count(), 2);
+    assert.equal(await page.evaluate(() =>
+      document.getElementById('gesturePathEditor').parentElement.id
+    ), 'previewStage', 'gesture handles must share the preview stage coordinate system');
     // Make the preview visible after interacting with the inspector below it.
     await page.locator('#previewStage').scrollIntoViewIfNeeded();
     const dest = handles.last();
