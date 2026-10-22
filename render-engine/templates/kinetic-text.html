@@ -378,6 +378,8 @@ function applyKineticMotion(scene, localT) {
     if (!element || !element.motion || element.motion.preset === 'none') continue;
     const node = document.getElementById(id);
     const state = engine.evaluate(element.motion, localT);
+    // Finished presets must not alter the template's legacy compositing.
+    if (state.opacity === 1 && state.offsetX === 0 && state.offsetY === 0 && state.scale === 1) continue;
     const baseline = node.style.transform === 'none' ? '' : node.style.transform;
     const alpha = Number.parseFloat(node.style.opacity || '1');
     node.style.opacity = String((Number.isFinite(alpha) ? alpha : 1) * state.opacity);
