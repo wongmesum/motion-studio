@@ -347,6 +347,30 @@ titleInput.addEventListener('input', () => {
 templateSelect.addEventListener('change', () => {
   store.update(() => ({ template: templateSelect.value }));
 });
+// Render settings are part of the persisted project, not presentation-only selects.
+// Updating the store also triggers preview recompile, aspect ratio and autosave.
+doc.getElementById('renderResolution').addEventListener('change', event => {
+  const match = /^(\d+)x(\d+)$/.exec(event.target.value);
+  if (!match) return;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  store.update(project => ({
+    render: { ...project.render, width, height }
+  }));
+});
+
+doc.getElementById('renderFps').addEventListener('change', event => {
+  const fps = Number(event.target.value);
+  if (![24, 30, 60].includes(fps)) return;
+  store.update(project => ({ render: { ...project.render, fps } }));
+});
+
+doc.getElementById('renderCodec').addEventListener('change', event => {
+  const codec = event.target.value;
+  if (!['h264', 'h265', 'av1'].includes(codec)) return;
+  store.update(project => ({ render: { ...project.render, codec } }));
+});
+
 
 saveBtn.addEventListener('click', saveCurrentProject);
 exportProjectBtn.addEventListener('click', () => {
