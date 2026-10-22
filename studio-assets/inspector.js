@@ -215,10 +215,13 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
       group.append(heading);
       for (const [key, labelText, choices] of [
         ['type', 'Aksi', ['tap', 'swipe']],
-        ['effect', 'Efek Lottie', ['none', 'sunburst', 'sunburst-soft']],
+        ['effect', 'Efek Lottie', ['none', 'sunburst', 'sunburst-soft', 'sunburst-wide', 'sunburst-star']],
       ]) {
         const widget = select(doc, gesture[key], choices);
-        widget.addEventListener('change', () => updateGesture(index, { [key]: widget.value }));
+        widget.addEventListener('change', () => updateGesture(index, {
+          [key]: widget.value,
+          ...(key === 'type' && widget.value === 'tap' ? { keyframes: undefined } : {})
+        }));
         group.append(control(doc, labelText, widget));
       }
       for (const [key, labelText] of [['startSec', 'Mulai (detik)'], ['durationSec', 'Durasi (detik)']]) {
@@ -245,6 +248,75 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
           });
           group.append(control(doc, name + ' ' + axis.toUpperCase(), field));
         }
+      }
+      if (gesture.type === 'swipe') {
+        const easing = select(doc, gesture.easing || 'ease-out',
+          ['linear', 'ease-in', 'ease-out', 'ease-in-out']);
+        easing.addEventListener('change', () =>
+          updateGesture(index, { easing: easing.value }));
+        group.append(control(doc, 'Easing lintasan', easing));
+
+        const keyframes = gesture.keyframes || [];
+        const addKeyframe = doc.createElement('button');
+        addKeyframe.type = 'button';
+        addKeyframe.className = 'btn btn-ghost btn-sm';
+        addKeyframe.textContent = '+ Tambah keyframe';
+        addKeyframe.disabled = keyframes.length >= 4;
+        addKeyframe.addEventListener('click', () => {
+          const stops = [
+            { at: 0, x: gesture.from.x, y: gesture.from.y },
+            ...keyframes,
+            { at: 1, x: gesture.to.x, y: gesture.to.y }
+          ];
+          let widest = 0;
+          for (let i = 1; i < stops.length; i++) {
+            if (stops[i].at - stops[i - 1].at > stops[widest + 1].at - stops[widest].at) {
+              widest = i - 1;
+            }
+          }
+          const before = stops[widest], after = stops[widest + 1];
+          const frame = {
+            at: Math.round((before.at + after.at) * 500) / 1000,
+            x: Math.round((before.x + after.x) * 500) / 1000,
+            y: Math.round((before.y + after.y) * 500) / 1000
+          };
+          updateGesture(index, { keyframes: [...keyframes, frame].sort((a, b) => a.at - b.at) });
+          render();
+        });
+        group.append(addKeyframe);
+        keyframes.forEach((frame, frameIndex) => {
+          const label = doc.createElement('p');
+          label.className = 'inspector-hint';
+          label.textContent = 'Keyframe ' + (frameIndex + 1) + ' (posisi relatif waktu)';
+          group.append(label);
+          for (const [axis, caption] of [['at', 'Waktu 0–1'], ['x', 'X'], ['y', 'Y']]) {
+            const field = input(doc, 'number', frame[axis], { min: '0', max: '1', step: '0.01' });
+            field.addEventListener('change', () => {
+              const value = Number(field.value);
+              const prev = frameIndex === 0 ? 0 : keyframes[frameIndex - 1].at;
+              const next = frameIndex === keyframes.length - 1 ? 1 : keyframes[frameIndex + 1].at;
+              const valid = Number.isFinite(value) && value >= 0 && value <= 1
+                && (axis !== 'at' || (value > prev && value < next));
+              if (!valid) {
+                notify('Keyframe harus berada dalam batas dan urutan waktunya.', 'error');
+                return;
+              }
+              const updated = keyframes.map((item, i) =>
+                i === frameIndex ? { ...item, [axis]: value } : item);
+              updateGesture(index, { keyframes: updated });
+            });
+            group.append(control(doc, caption, field));
+          }
+          const removeFrame = doc.createElement('button');
+          removeFrame.type = 'button';
+          removeFrame.className = 'btn btn-ghost btn-sm';
+          removeFrame.textContent = 'Hapus keyframe ' + (frameIndex + 1);
+          removeFrame.addEventListener('click', () => {
+            updateGesture(index, { keyframes: keyframes.filter((_, i) => i !== frameIndex) });
+            render();
+          });
+          group.append(removeFrame);
+        });
       }
       const remove = doc.createElement('button');
       remove.type = 'button';
