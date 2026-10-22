@@ -5,6 +5,8 @@
 export const LOTTIE_CATALOG = Object.freeze([
   Object.freeze({ id: 'click-sunburst-soft-xs', label: 'Click sunburst', category: 'gesture', file: 'click-sunburst-soft-xs.json' }),
   Object.freeze({ id: 'cursor-anim-filled-click', label: 'Cursor click', category: 'cursor', file: 'cursor-anim-filled-click.json' }),
+  Object.freeze({ id: 'click-sunburst-soft', label: 'Wide sunburst', category: 'gesture', file: 'click-sunburst-soft.json' }),
+  Object.freeze({ id: 'click-sunburst', label: 'Starburst 12-ray', category: 'gesture', file: 'click-sunburst.json' }),
   Object.freeze({ id: 'cursor-anim-filled-idle', label: 'Cursor idle', category: 'cursor', file: 'cursor-anim-filled-idle.json' }),
 ]);
 export function findLottie(id) {
