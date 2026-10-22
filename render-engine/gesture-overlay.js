@@ -33,19 +33,46 @@
       return group.it.find(item => item.ty === 'sh').ks.k.v;
     });
   }
-  const rays = extractRays(art.burst);
-  const softRays = extractRays(art.burstSoft);
+  const bursts = {
+    sunburst: extractRays(art.burst),
+    'sunburst-soft': extractRays(art.burstSoft),
+    'sunburst-wide': extractRays(art.burstWide),
+    'sunburst-star': extractRays(art.burstStar)
+  };
 
   function ease(t) {
     const x = Math.max(0, Math.min(1, t));
     return 1 - Math.pow(1 - x, 3);
   }
-  function pointAlong(gesture, p) {
-    const progress = gesture.type === 'tap' ? 1 : ease(p);
-    return {
-      x: (gesture.from.x + (gesture.to.x - gesture.from.x) * progress) * canvas.width,
-      y: (gesture.from.y + (gesture.to.y - gesture.from.y) * progress) * canvas.height
-    };
+  function segmentEase(progress, easing) {
+    const p = Math.max(0, Math.min(1, progress));
+    if (easing === 'linear') return p;
+    if (easing === 'ease-in') return p * p * p;
+    if (easing === 'ease-in-out') return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(2 - 2 * p, 3) / 2;
+    return ease(p); // Legacy default: cubic ease-out.
+  }
+  function pointAlong(gesture, progress) {
+    if (gesture.type === 'tap') {
+      return { x: gesture.to.x * canvas.width, y: gesture.to.y * canvas.height };
+    }
+    const keyframes = [
+      { at: 0, x: gesture.from.x, y: gesture.from.y },
+      ...(gesture.keyframes || []),
+      { at: 1, x: gesture.to.x, y: gesture.to.y }
+    ];
+    const p = Math.max(0, Math.min(1, progress));
+    for (let i = 1; i < keyframes.length; i++) {
+      const start = keyframes[i - 1];
+      const end = keyframes[i];
+      if (p <= end.at || i === keyframes.length - 1) {
+        const t = segmentEase((p - start.at) / (end.at - start.at), gesture.easing);
+        return {
+          x: (start.x + (end.x - start.x) * t) * canvas.width,
+          y: (start.y + (end.y - start.y) * t) * canvas.height
+        };
+      }
+    }
+    return { x: gesture.to.x * canvas.width, y: gesture.to.y * canvas.height };
   }
   function drawCursor(pos, scale) {
     ctx.save();
@@ -87,9 +114,9 @@
     ctx.translate(pos.x, pos.y);
     ctx.globalAlpha = Math.max(0, Math.min(1, p * 6, (1 - p) * 3));
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = effect === 'sunburst-soft' ? 2 : 3;
+    ctx.lineWidth = effect === 'sunburst-soft' || effect === 'sunburst-wide' ? 2 : 3;
     ctx.lineCap = 'round';
-    const selectedRays = effect === 'sunburst-soft' ? softRays : rays;
+    const selectedRays = bursts[effect] || [];
     for (const points of selectedRays) {
       const from = points[0], to = points[1];
       // Lottie path geometry is centred at (100,100).
@@ -114,7 +141,7 @@
         const location = pointAlong(gesture, p);
         const press = gesture.type === 'tap' && p > 0.55 && p < 0.8 ? 0.88 : 1;
         drawCursor(location, press * 1.25);
-        if (gesture.effect === 'sunburst' || gesture.effect === 'sunburst-soft') {
+        if (bursts[gesture.effect]) {
           const burstPhase = gesture.type === 'tap' ? (p - 0.55) / 0.45 : (p - 0.75) / 0.25;
           drawBurst(location, burstPhase, gesture.effect);
         }
