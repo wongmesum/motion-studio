@@ -19,7 +19,7 @@ export const PROJECT_LIMITS = {
 
 export const ELEMENT_TYPES = Object.freeze(['text', 'image', 'video']);
 export const GESTURE_TYPES = Object.freeze(['tap', 'swipe']);
-export const GESTURE_EFFECTS = Object.freeze(['none', 'sunburst']);
+export const GESTURE_EFFECTS = Object.freeze(['none', 'sunburst', 'sunburst-soft']);
 export const MOTION_PRESETS = Object.freeze(['none', 'fade-in', 'slide-up', 'slide-left', 'zoom-in']);
 export const ELEMENT_ROLES = Object.freeze(['title', 'subtitle', 'caption', 'background', 'pip', 'logo']);
 export const TRANSITION_TYPES = Object.freeze(['fade', 'slide', 'none']);
