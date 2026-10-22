@@ -18,7 +18,8 @@ export function createGesturePathEditor({ document: doc, store, getSelection }) 
     layer.style.height = bounds.height + 'px';
   }
   doc.defaultView.addEventListener('resize', syncBounds);
-  doc.defaultView.addEventListener('scroll', syncBounds, { passive: true });
+  // Capture scrolls from nested panels as well as the document itself.
+  doc.defaultView.addEventListener('scroll', syncBounds, { capture: true, passive: true });
   if (doc.defaultView.ResizeObserver) {
     new doc.defaultView.ResizeObserver(syncBounds).observe(stage);
   }
