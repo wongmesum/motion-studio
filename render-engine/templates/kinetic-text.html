@@ -340,6 +340,8 @@ function updateDOM(t, state) {
 
   kickerEl.style.opacity = String(Math.min(1, Math.max(0, (t - 0.2) / 0.6)));
   subBarEl.style.opacity = String(Math.min(1, Math.max(0, (t - 0.5) / 0.7)));
+  kickerEl.style.transform = 'none';
+  subBarEl.style.transform = 'none';
 
   // Efek Glitch Deterministik aktif setelah t > 1.0s pada interval tertentu
   const glitchTrigger = t > 1.0 && (Math.sin(t * 17) > 0.62 || Math.cos(t * 29) > 0.78);
@@ -366,6 +368,24 @@ function updateDOM(t, state) {
   tcEl.textContent = `TC 00:00:${String(sec).padStart(2, '0')}:${String(frame).padStart(2, '0')}`;
 }
 
+// Layer authored motion on top of the existing neon entrance/glitch animation.
+// Scene-local seconds ensure seeking to arbitrary frames is deterministic.
+function applyKineticMotion(scene, localT) {
+  const engine = window.MotionStudioMotion;
+  if (!engine || !scene) return;
+  for (const [role, id] of [['title', 'glitchWrap'], ['caption', 'kicker'], ['subtitle', 'subBar']]) {
+    const element = sceneElement(scene, role);
+    if (!element || !element.motion || element.motion.preset === 'none') continue;
+    const node = document.getElementById(id);
+    const state = engine.evaluate(element.motion, localT);
+    const baseline = node.style.transform === 'none' ? '' : node.style.transform;
+    const alpha = Number.parseFloat(node.style.opacity || '1');
+    node.style.opacity = String((Number.isFinite(alpha) ? alpha : 1) * state.opacity);
+    node.style.transform = baseline + ' translate(' + state.offsetX + 'px,' +
+      state.offsetY + 'px) scale(' + state.scale + ')';
+  }
+}
+
 function drawFrame(time) {
   const active = entryAt(time);
   const localT = active ? active.localT : time;
@@ -374,6 +394,7 @@ function drawFrame(time) {
 
   drawFuturisticCity(localT);
   updateDOM(localT, state);
+  if (active) applyKineticMotion(active.scene, localT);
 }
 
 window.renderFrame = function(t) {
