@@ -165,19 +165,13 @@ const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2
 
 function applyMotion(node, element, localT) {
   const motion = element && element.motion;
-  if (!motion || motion.preset === 'none') {
-    node.style.opacity = '';
-    node.style.transform = '';
-    return;
-  }
-  const raw = Math.max(0, Math.min(1, (localT - motion.startSec) / motion.durationSec));
-  const p = 1 - Math.pow(1 - raw, 3);
-  node.style.opacity = String(p);
-  const translate = motion.preset === 'slide-up' ? 'translateY(' + (1 - p) * 60 + 'px)'
-    : motion.preset === 'slide-left' ? 'translateX(' + (1 - p) * 80 + 'px)'
-    : motion.preset === 'zoom-in' ? 'scale(' + (0.85 + p * 0.15) + ')'
-    : 'none';
-  node.style.transform = translate;
+  if (!motion) return;
+  const state = window.MotionStudioMotion
+    ? window.MotionStudioMotion.evaluate(motion, localT)
+    : { opacity: 1, offsetX: 0, offsetY: 0, scale: 1 };
+  node.style.opacity = String(state.opacity);
+  node.style.transform = 'translate(' + state.offsetX + 'px, ' + state.offsetY +
+    'px) scale(' + state.scale + ')';
 }
 function syncSceneMotion(scene, localT) {
   for (const role of ['caption', 'title', 'subtitle']) {
