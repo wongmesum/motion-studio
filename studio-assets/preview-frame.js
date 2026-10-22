@@ -19,6 +19,7 @@ export function createPreviewFrame({
   notify,
   getUseAiHtml = () => false,
 }) {
+  const stage = doc.getElementById('previewStage');
   const frame = doc.getElementById('previewFrame');
   const placeholder = doc.getElementById('previewPlaceholder');
   const loading = doc.getElementById('previewLoading');
@@ -94,6 +95,12 @@ export function createPreviewFrame({
 
   async function compile() {
     const project = store.getProject();
+    const width = Number(project.render?.width);
+    const height = Number(project.render?.height);
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      stage.style.aspectRatio = width + ' / ' + height;
+      stage.classList.toggle('portrait', width < height);
+    }
     const issues = projectIssues(project);
     if (issues.length > 0) {
       frame.removeAttribute('srcdoc');
