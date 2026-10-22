@@ -84,3 +84,34 @@ test('same gesture frame stays identical between preview and render; no asset CD
     assert.equal(parity[0], parity[1]);
   } finally { await browser.close(); }
 });
+
+test('soft eight-ray Lottie effect is allowlisted and renders distinct offline artwork', async () => {
+  const soft = project({ ...tap(), effect: 'sunburst-soft' });
+  const classic = project(tap());
+  assert.equal(normalizeProjectDraft(soft).scenes[0].gestures[0].effect, 'sunburst-soft');
+  const [softPreview, softRender, classicRender] = await Promise.all([
+    compileProject(soft, { target: 'preview', readTemplate }),
+    compileProject(soft, { target: 'render', readTemplate }),
+    compileProject(classic, { target: 'render', readTemplate })
+  ]);
+  assert.match(softRender.html, /burstSoft/);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const results = [];
+    for (const html of [softPreview.html, softRender.html, classicRender.html]) {
+      const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+      try {
+        await page.route('https://cdn.jsdelivr.net/**', route => route.abort());
+        await page.setContent(html, { waitUntil: 'load' });
+        results.push(await page.evaluate(() => {
+          window.renderFrame(0.7);
+          return document.getElementById('motion-gesture-layer').toDataURL('image/png');
+        }));
+      } finally { await page.close(); }
+    }
+    assert.equal(results[0], results[1], 'soft Lottie preview and render are different');
+    assert.notEqual(results[1], results[2], 'soft Lottie artwork matches classic unexpectedly');
+  } finally {
+    await browser.close();
+  }
+});
