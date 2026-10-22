@@ -121,6 +121,16 @@ function injectProjectData(html, dataScript) {
 }
 
 
+// Shared deterministic motion math is embedded before template scripts execute.
+// This avoids network dependencies and makes preview/render use identical easing.
+async function injectMotionPresets(html, project) {
+  if (!project.scenes.some(scene => scene.elements.some(element => element.motion && element.motion.preset !== 'none'))) {
+    return html;
+  }
+  const runtime = await readFile(new URL('../../render-engine/motion-presets.js', import.meta.url), 'utf8');
+  return injectProjectData(html, '<script id="motion-preset-runtime">\\n' + runtime + '\\n</script>');
+}
+
 // Motion Studio embeds only vetted local artwork and a deterministic SVG/Canvas renderer.
 // No remote URLs, arbitrary JSON payloads or third-party scripts enter render HTML.
 async function injectGestureOverlay(html, project) {
@@ -251,7 +261,8 @@ export async function compileProject(input, {
   const dataScript = buildProjectDataScript(resolved);
   const withData = injectProjectData(baseHtml, dataScript);
   const withBridge = target === 'preview' ? injectPreviewBridge(withData) : withData;
-  const withGesture = await injectGestureOverlay(withBridge, resolved);
+  const withMotion = await injectMotionPresets(withBridge, resolved);
+  const withGesture = await injectGestureOverlay(withMotion, resolved);
   const deterministicHtml = sanitizeHtml(withGesture);
   const warnings = [];
 
@@ -274,7 +285,8 @@ export async function compileProject(input, {
     const candidateWithBridge = target === 'preview'
       ? injectPreviewBridge(candidateWithData)
       : candidateWithData;
-    const candidateWithGesture = await injectGestureOverlay(candidateWithBridge, resolved);
+    const candidateWithMotion = await injectMotionPresets(candidateWithBridge, resolved);
+    const candidateWithGesture = await injectGestureOverlay(candidateWithMotion, resolved);
     const aiHtml = sanitizeHtml(candidateWithGesture);
     describeDryRunFailure(await testAiHtml(aiHtml, resolved.render));
     return { html: aiHtml, project: resolved, target, warnings, audioLocalPath };
