@@ -49,11 +49,25 @@ test('motion data survives deterministic compile', async () => {
 });
 
 
-test('inspector only advertises motion on templates with supported playback', () => {
-  assert.equal(supportsProperty('base', 'text', 'motion'), true);
-  for (const template of ['kinetic-text', 'image-slideshow', 'video-mixer']) {
-    assert.equal(supportsProperty(template, 'text', 'motion'), false);
+test('inspector advertises motion on every implemented text renderer and mixer media', () => {
+  for (const template of ['base', 'kinetic-text', 'image-slideshow', 'video-mixer']) {
+    assert.equal(supportsProperty(template, 'text', 'motion'), true);
   }
-  assert.equal(supportsProperty('base', 'image', 'motion'), false);
-  assert.equal(supportsProperty('base', 'video', 'motion'), false);
+  for (const template of ['base', 'kinetic-text', 'image-slideshow']) {
+    assert.equal(supportsProperty(template, 'image', 'motion'), false);
+    assert.equal(supportsProperty(template, 'video', 'motion'), false);
+  }
+  assert.equal(supportsProperty('video-mixer', 'image', 'motion'), true);
+  assert.equal(supportsProperty('video-mixer', 'video', 'motion'), true);
+});
+
+test('defaulted motion values must fit the scene and cannot bypass timing validation', () => {
+  assert.throws(
+    () => normalizeProjectDraft(project({ preset: 'fade-in', startSec: 0.4 }, 0.6)),
+    /animasi/i
+  );
+  assert.deepEqual(
+    normalizeProjectDraft(project({ preset: 'fade-in' }, 1)).scenes[0].elements[0].motion,
+    { preset: 'fade-in', startSec: 0, durationSec: 0.8 }
+  );
 });
