@@ -1634,3 +1634,64 @@ test('inspector creates and exports editable motion path keyframes', async () =>
     await stack.close();
   }
 });
+
+test('gesture swipe keyframe has a draggable editor handle and exports its coordinates', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.click('#addSceneBtn');
+    await page.getByRole('button', { name: '+ Tambah gesture' }).click();
+    await page.getByLabel('Aksi', { exact: true }).selectOption('swipe');
+    await page.getByRole('button', { name: '+ Tambah keyframe' }).click();
+    const handle = page.getByRole('button', { name: 'Gesture 1 keyframe 1' });
+    await handle.waitFor({ timeout: PAGE_TIMEOUT_MS });
+    assert.equal(await page.locator('#gesturePathEditor .gesture-handle').count(), 3);
+    const box = await handle.boundingBox();
+    assert.ok(box, 'Keyframe handle not visible');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 45, box.y + box.height / 2 - 20, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForFunction(() => {
+      const handle = document.querySelector('[aria-label="Gesture 1 keyframe 1"]');
+      return handle && Number.parseFloat(handle.style.left) > 62.5;
+    }, null, { timeout: PAGE_TIMEOUT_MS });
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: PAGE_TIMEOUT_MS }),
+      page.click('#exportProjectBtn')
+    ]);
+    const exported = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+    const keyframe = exported.scenes[0].gestures[0].keyframes[0];
+    assert.equal(keyframe.at, 0.5);
+    assert.ok(keyframe.x > 0.625, 'dragged keyframe was not persisted to project JSON');
+  } finally { await stack.close(); }
+});
+
+test('portrait output selection updates preview stage ratio without horizontal overflow', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.click('#addSceneBtn');
+    await page.selectOption('#renderResolution', '1080x1920');
+    await page.waitForFunction(() => {
+      const stage = document.getElementById('previewStage');
+      return stage.classList.contains('portrait') && stage.style.aspectRatio === '1080 / 1920';
+    }, null, { timeout: PAGE_TIMEOUT_MS });
+    const dims = await page.evaluate(() => {
+      const rect = document.getElementById('previewStage').getBoundingClientRect();
+      return { ratio: rect.width / rect.height, overflow: document.documentElement.scrollWidth - innerWidth };
+    });
+    assert.ok(Math.abs(dims.ratio - 9 / 16) < 0.015, 'portrait preview ratio mismatch');
+    assert.ok(dims.overflow <= 1, 'portrait selection overflowed the editor');
+  } finally { await stack.close(); }
+});
