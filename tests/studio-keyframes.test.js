@@ -17,7 +17,7 @@ function draft(template = 'base', motion = { preset: 'none', startSec: 0, durati
     schemaVersion: 1, title: 'Keyframe Motion', template,
     render: { fps: 12, width: 1920, height: 1080, codec: 'h264' },
     scenes: [{ durationSec: 2, transition: { type: 'none', durationSec: 0 },
-      elements: [{ type: 'text', role: 'title', text: 'Keyframe test', motion }]
+      elements: [{ type: 'text', role: 'title', text: 'Keyframe test', motion: structuredClone(motion) }]
     }]
   };
 }
