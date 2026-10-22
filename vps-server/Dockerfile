@@ -29,6 +29,8 @@ COPY vps-server/ ./
 WORKDIR /app
 COPY admin-dashboard.html preview-studio.html ./
 COPY render-engine/ ./render-engine/
+COPY modules/lottie/ ./modules/lottie/
+COPY third-party/claude-remotion-editor/ ./third-party/claude-remotion-editor/
 COPY studio-assets/ ./studio-assets/
 
 EXPOSE 3000

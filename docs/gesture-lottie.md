@@ -34,20 +34,42 @@ into the export. The normalized data controls both preview and render output.
 The artwork was copied from:
 https://github.com/ytrofr/claude-remotion-editor
 
-Bundled Lottie JSON:
-- `render-engine/lottie/cursor-real-black.json`
-- `render-engine/lottie/click-sunburst-soft-4-sm.json`
+Five Lottie JSON files are bundled. All five are byte-identical to the matching
+`public/lottie/<filename>` files at upstream commit
+[`9f3130c48453182416ffe7a279d57a41dd929ae8`](https://github.com/ytrofr/claude-remotion-editor/tree/9f3130c48453182416ffe7a279d57a41dd929ae8).
+The Git blob hashes below pin the audited artwork, not renderer compatibility.
 
-The original repository's MIT license is preserved at
-`third-party/claude-remotion-editor/LICENSE`.
+| Local file | Git blob SHA | Use |
+| --- | --- | --- |
+| `render-engine/lottie/cursor-real-black.json` | `2b98eb701d7f7f05e44105ffdcb537a3c588daa3` | Gesture renderer |
+| `render-engine/lottie/click-sunburst-soft-4-sm.json` | `0b8a5f44b9fe047eb45c34c5cf974b9bdd26d95c` | Gesture renderer |
+| `modules/lottie/assets/click-sunburst-soft-xs.json` | `4c76a9f49df95d771984b2372bb4aa43ebdaa686` | Gesture renderer (`sunburst-soft`) and catalog |
+| `modules/lottie/assets/cursor-anim-filled-click.json` | `c81ffc8b98d3f74d2e53a9085bfeca522286f92f` | Catalog only |
+| `modules/lottie/assets/cursor-anim-filled-idle.json` | `4075e071c67ff07c4d470c11d81dab15422d7689` | Catalog only |
 
-`render-engine/gesture-overlay.js` implements a **limited local Lottie
-shape-path renderer** for only these two known assets. It uses their vector
-geometry and a deterministic timestamp to draw a cursor and burst.
+The upstream MIT license (copyright 2026 ytrofr) is preserved verbatim at
+`third-party/claude-remotion-editor/LICENSE` and `modules/lottie/UPSTREAM-LICENSE`.
+Copies or substantial portions of the artwork must retain the copyright and
+permission notice. The production image includes both license paths with their assets, and
+compiled preview/render HTML containing artwork embeds the complete license in
+`motion-gesture-license`, a nonvisual JSON data block. The source ZIP build
+scripts include both license files. No visible watermark is required by MIT.
+The repository license and matching bytes establish repository-level attribution;
+they do not independently establish the original authorship of each artwork.
+
+`render-engine/gesture-overlay.js` uses the geometry of only the three renderer
+assets with **locally authored deterministic animation**. It reads the cursor's
+static Bezier path and the bursts' four or eight two-point rays. Cursor fill/outline,
+scale and press timing, ray styling, opacity and growth are local choices;
+source layer/group transforms, keyframes, trim-path instructions and interpolation
+curves are not interpreted. The two animated cursor catalog entries are not connected to this
+overlay and must not be advertised as playable animations.
+
+Waypoints locate the cursor tip. Tap uses `to`; swipe eases from `from` to `to`.
+Press scaling stays anchored at the tip, and the burst follows that same point.
 This is **not** a complete Lottie player: arbitrary uploaded Lottie JSON,
-text/image/3D layers, expressions, advanced masks, and original Lottie
-interpolation curves are not supported. Do not present the two assets as the
-entire 92-animation collection.
+text/image/3D layers, expressions, and advanced masks are not supported.
+Do not present this integration as support for the entire 92-animation collection.
 
 No external scripts, asset URLs, React/Remotion workers, or runtime network
 calls are used for gesture rendering. The compiler injects vetted local vector

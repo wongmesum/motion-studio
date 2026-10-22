@@ -25,6 +25,8 @@
   document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
   const source = art.cursor.layers[0].shapes[0].it.find(item => item.ty === 'sh').ks.k;
+  // Vertex 1 is the tip of this vetted cursor artwork (not a generic Lottie anchor).
+  const cursorTip = source.v[1];
   function extractRays(animation) {
     return animation.layers.map(layer => {
       const group = layer.shapes.find(item => item.ty === 'gr');
@@ -49,6 +51,7 @@
     ctx.save();
     ctx.translate(pos.x, pos.y);
     ctx.scale(scale, scale);
+    ctx.translate(-cursorTip[0], -cursorTip[1]);
     const v = source.v, inn = source.i, out = source.o;
     ctx.beginPath();
     ctx.moveTo(v[0][0], v[0][1]);
@@ -113,7 +116,7 @@
         drawCursor(location, press * 1.25);
         if (gesture.effect === 'sunburst' || gesture.effect === 'sunburst-soft') {
           const burstPhase = gesture.type === 'tap' ? (p - 0.55) / 0.45 : (p - 0.75) / 0.25;
-          drawBurst(pointAlong(gesture, 1), burstPhase, gesture.effect);
+          drawBurst(location, burstPhase, gesture.effect);
         }
       }
       offset += Number(scene.durationSec) || 0;
