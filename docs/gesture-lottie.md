@@ -154,3 +154,64 @@ geometry specifically for mobile rather than merely scaling a landscape stage.
 Browser tests cover output geometry, preview vs export, motion keyframe replay,
 and editor export. CI also renders a short **1080×1920 H.264 MP4** inspected
 with FFprobe. VPS/staging visual QA is still required before deployment.
+
+## Phase 3 — Gesture path keyframes and playable vector bursts
+
+The curated local library now contains two additional burst assets from the
+same MIT-licensed upstream repository:
+- `modules/lottie/assets/click-sunburst-soft.json` (`sunburst-wide`): 8 rays
+- `modules/lottie/assets/click-sunburst.json` (`sunburst-star`): 12 rays
+
+The renderer supports **four authored gesture burst selections**: `sunburst`,
+`sunburst-soft`, `sunburst-wide`, and `sunburst-star`. Each is drawn from
+allowlisted local vector path data. Playback uses the Motion Studio timeline
+and deterministic trim/stroke logic, **not** a full interpretation of the
+upstream Lottie easing, compositing, or layer transforms. Curated cursor assets
+that are catalogued but not mapped to playback remain catalog-only.
+
+Swipe gestures can optionally include an easing and 1–4 intermediate path
+keyframes. Time is the normalized progress within the gesture's
+`durationSec`, not global video seconds:
+
+```json
+{
+  "type": "swipe",
+  "effect": "sunburst-star",
+  "startSec": 0.4,
+  "durationSec": 1.2,
+  "easing": "ease-in-out",
+  "from": { "x": 0.2, "y": 0.5 },
+  "keyframes": [
+    { "at": 0.35, "x": 0.4, "y": 0.18 },
+    { "at": 0.7, "x": 0.7, "y": 0.3 }
+  ],
+  "to": { "x": 0.82, "y": 0.6 }
+}
+```
+
+Allowed easing: `linear`, `ease-in`, `ease-out`, `ease-in-out`.
+Keys must be **strictly increasing** in `at` (each strictly between 0 and 1)
+and have finite x/y coordinates between 0 and 1. More than four intermediate
+keys are rejected. Tap gestures cannot have keyframes. Older project gesture
+JSON with only `from` and `to` continues to behave the same.
+
+The inspector can add, edit or remove individual keys. A separate orange
+handle appears at each intermediate keyframe in the visual gesture path editor.
+Dragging a handle modifies only x/y; the inspector controls its time (`at`).
+This authoring overlay is never included in output video.
+
+## Portrait compatibility and rollout status
+
+The editor offers 720×1280 and 1080×1920 output modes, and preview stage
+aspect ratio tracks the selected output. The deterministic
+`render-engine/viewport-fit.js` adapter fits the original 1920×1080
+template composition into the portrait frame *without stretching or cropping
+the source*. Additional space is filled with a dark gradient. Overlay gesture
+coordinates are relative to the full output frame, not to the center-fitted
+source stage.
+
+**Important:** This is a *contain/letterbox* compatibility layout, not a
+portrait-native rearrangement of Canvas text cards and artwork. High-quality
+9:16 designs will require dedicated template layouts and visual review.
+CI covers landscape and portrait MP4 encoding via Playwright/FFmpeg/FFprobe,
+but production staging and user-content visual QA remain separate gates.
