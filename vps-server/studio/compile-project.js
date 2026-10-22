@@ -136,14 +136,16 @@ async function injectMotionPresets(html, project) {
 async function injectGestureOverlay(html, project) {
   if (!project.scenes.some((scene) => (scene.gestures || []).length > 0)) return html;
   const asset = (relative) => new URL(relative, import.meta.url);
-  const [runtime, cursor, burst] = await Promise.all([
+  const [runtime, cursor, burst, burstSoft] = await Promise.all([
     readFile(asset('../../render-engine/gesture-overlay.js'), 'utf8'),
     readFile(asset('../../render-engine/lottie/cursor-real-black.json'), 'utf8'),
     readFile(asset('../../render-engine/lottie/click-sunburst-soft-4-sm.json'), 'utf8'),
+    readFile(asset('../../modules/lottie/assets/click-sunburst-soft-xs.json'), 'utf8'),
   ]);
   const artwork = escapeInlineJsonPayload({
     cursor: JSON.parse(cursor),
     burst: JSON.parse(burst),
+    burstSoft: JSON.parse(burstSoft),
   });
   const scripts = '<script type="application/json" id="motion-gesture-art">' + artwork
     + '</script><script id="motion-gesture-runtime">\n' + runtime + '\n</script>';
