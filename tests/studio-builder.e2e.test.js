@@ -1599,3 +1599,38 @@ test('gesture path editor drags a cursor waypoint and preserves scene data', asy
     await stack.close();
   }
 });
+
+
+test('inspector creates and exports editable motion path keyframes', async () => {
+  const state = createState({ authenticated: true });
+  const stack = await openStudio(state);
+  const { page } = stack;
+  try {
+    await page.waitForFunction(
+      () => document.getElementById('templateSelect').options.length === 4,
+      null, { timeout: PAGE_TIMEOUT_MS }
+    );
+    await page.fill('#promptInput', 'promo');
+    await page.click('#generateBtn');
+    await page.waitForSelector('#promptChoice:not([hidden])', { timeout: PAGE_TIMEOUT_MS });
+    await page.click('#promptReplaceBtn');
+    await page.waitForSelector('.element-row', { timeout: PAGE_TIMEOUT_MS });
+    await page.click('.element-row');
+    await page.getByRole('button', { name: '+ Buat motion path' }).click();
+    await page.getByRole('button', { name: '+ Tambah keyframe' }).click();
+    assert.equal(await page.locator('#inspectorForm fieldset').count(), 3);
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: PAGE_TIMEOUT_MS }),
+      page.click('#exportProjectBtn')
+    ]);
+    const exported = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+    const motion = exported.scenes[0].elements.find(el => el.type === 'text')?.motion;
+    assert.equal(motion?.preset, 'none');
+    assert.equal(motion?.keyframes.length, 3);
+    assert.ok(motion.keyframes[0].timeSec < motion.keyframes[1].timeSec);
+    assert.ok(motion.keyframes[1].timeSec < motion.keyframes[2].timeSec);
+  } finally {
+    await stack.close();
+  }
+});
