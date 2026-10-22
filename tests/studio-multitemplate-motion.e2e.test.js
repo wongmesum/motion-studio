@@ -105,3 +105,46 @@ test('video-mixer animates a media card without fetching external media URLs', a
     await browser.close();
   }
 });
+
+test('SceneDirector tap/swipe overlay stays deterministic on all additional templates', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const template of TEMPLATES) {
+      const data = project(template, true);
+      data.scenes[0].gestures = [
+        { type: 'swipe', effect: 'sunburst-soft', startSec: 0.1, durationSec: 1.2,
+          from: { x: 0.25, y: 0.35 }, to: { x: 0.75, y: 0.55 } }
+      ];
+      const readTemplate = () => fs.readFile(path.resolve('render-engine/templates', template + '.html'), 'utf8');
+      const [preview, render] = await Promise.all([
+        compileProject(data, { target: 'preview', readTemplate }),
+        compileProject(data, { target: 'render', readTemplate })
+      ]);
+      const output = [];
+      for (const html of [preview.html, render.html]) {
+        const page = await browser.newPage({ viewport: { width: W, height: H } });
+        try {
+          await page.route('https://cdn.jsdelivr.net/**', route => route.abort());
+          await page.setContent(html, { waitUntil: 'load' });
+          const overlay = [];
+          for (const time of [0.35, 1.0, 0.35]) {
+            overlay.push(await page.evaluate(t => {
+              window.renderFrame(t);
+              const layer = document.getElementById('motion-gesture-layer');
+              if (!layer) throw new Error('Missing gesture overlay');
+              return layer.toDataURL('image/png');
+            }, time));
+          }
+          assert.equal(overlay[0], overlay[2], template + ': overlay failed seek replay');
+          assert.notEqual(overlay[0], overlay[1], template + ': gesture did not animate');
+          output.push(overlay[1]);
+        } finally {
+          await page.close();
+        }
+      }
+      assert.equal(output[0], output[1], template + ': overlay differs in preview and render');
+    }
+  } finally {
+    await browser.close();
+  }
+});
