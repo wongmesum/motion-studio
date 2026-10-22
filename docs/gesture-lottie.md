@@ -85,3 +85,29 @@ This is a first integration increment in a Draft PR. Before enabling the
 rest of SceneDirector or additional Lottie files, explicitly review license
 provenance for every new asset and add a supported renderer/test for its
 animation features. Production VPS deployment is a separate gate.
+
+## Motion presets across templates (phase 2)
+
+Project schema v1 is retained. The allowlisted element `motion` object supports
+`none`, `fade-in`, `slide-up`, `slide-left` and `zoom-in`, with
+`startSec` and `durationSec` relative to the active scene. Each animation
+must finish within its scene. A shared, deterministic browser-side evaluator
+(`render-engine/motion-presets.js`) is embedded locally by the compiler when
+needed. It is executed before template scripts in both preview and final render.
+
+| Template | Supported elements | Playback method |
+| --- | --- | --- |
+| `base` | Text title, subtitle, caption | Existing DOM preset renderer |
+| `kinetic-text` | Text title, subtitle, caption | DOM motion layered over the neon/glitch entrance |
+| `image-slideshow` | Text title, subtitle or caption fallback | Canvas motion on lower-third text |
+| `video-mixer` | Text title and image/video PiP cards | Canvas alpha, translation and scale |
+
+The visual inspector exposes controls only for the supported template/element
+combinations. Unsupported roles, or image media in slideshow, do not gain inert
+motion controls. The existing scene-level gesture overlay remains independent
+of templates, so tap/swipe and both burst effects work on all four templates.
+
+**Not yet implemented:** general-purpose Lottie playback, the complete
+React/Remotion SceneDirector UI, keyframed editable motion curves, and
+production deployment/portrait video smoke tests. Each new Lottie asset
+requires license provenance and an explicit supported-rendering test.
