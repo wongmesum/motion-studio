@@ -218,10 +218,17 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
         ['effect', 'Efek Lottie', ['none', 'sunburst', 'sunburst-soft', 'sunburst-wide', 'sunburst-star']],
       ]) {
         const widget = select(doc, gesture[key], choices);
-        widget.addEventListener('change', () => updateGesture(index, {
-          [key]: widget.value,
-          ...(key === 'type' && widget.value === 'tap' ? { keyframes: undefined } : {})
-        }));
+        widget.addEventListener('change', () => {
+          const patch = { [key]: widget.value };
+          if (key === 'type' && widget.value === 'tap') patch.keyframes = undefined;
+          // A new swipe created from a tap needs visible handle spacing.
+          if (key === 'type' && widget.value === 'swipe'
+            && gesture.from.x === gesture.to.x && gesture.from.y === gesture.to.y) {
+            patch.to = { x: gesture.from.x <= 0.7 ? gesture.from.x + 0.25 : gesture.from.x - 0.25,
+              y: gesture.from.y };
+          }
+          updateGesture(index, patch);
+        });
         group.append(control(doc, labelText, widget));
       }
       for (const [key, labelText] of [['startSec', 'Mulai (detik)'], ['durationSec', 'Durasi (detik)']]) {
