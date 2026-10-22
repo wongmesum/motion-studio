@@ -428,7 +428,7 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
       const motion = element.motion || { preset: 'none', startSec: 0, durationSec: Math.min(0.8, scene.durationSec) };
       const preset = select(doc, motion.preset, MOTION_PRESETS);
       preset.addEventListener('change', () => {
-        store.updateElement(scene.id, element.id, () => ({ motion: preset.value === 'none' ? undefined : { ...motion, preset: preset.value } }));
+        store.updateElement(scene.id, element.id, () => ({ motion: preset.value === 'none' && !motion.keyframes ? undefined : { ...motion, preset: preset.value } }));
       });
       elementGroup.append(control(doc, 'Preset motion', preset));
       for (const [field, labelText] of [['startSec', 'Mulai (detik)'], ['durationSec', 'Durasi (detik)']]) {
@@ -436,11 +436,101 @@ export function createInspector({ document: doc, store, assetsPanel, notify }) {
         value.addEventListener('change', () => {
           const seconds = Number(value.value);
           if (Number.isFinite(seconds) && seconds >= (field === 'startSec' ? 0 : 0.1)
-            && (field === 'startSec' ? seconds + motion.durationSec <= scene.durationSec : motion.startSec + seconds <= scene.durationSec)) {
+            && (field === 'startSec' ? seconds + motion.durationSec <= scene.durationSec : motion.startSec + seconds <= scene.durationSec && (!motion.keyframes || motion.keyframes[motion.keyframes.length - 1].timeSec <= seconds))) {
             store.updateElement(scene.id, element.id, () => ({ motion: { ...motion, [field]: seconds } }));
           } else notify('Timing animasi harus berada dalam durasi scene.', 'error');
         });
         elementGroup.append(control(doc, labelText, value));
+      }
+
+      const frames = motion.keyframes || [];
+      const subheading = doc.createElement('h4');
+      subheading.textContent = 'Jalur gerak / Keyframe';
+      elementGroup.append(subheading);
+      const updateMotion = patch => store.updateElement(scene.id, element.id, () => ({
+        motion: patch
+      }));
+      const action = (label, handler) => {
+        const button = doc.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-ghost btn-sm';
+        button.textContent = label;
+        button.addEventListener('click', handler);
+        elementGroup.append(button);
+      };
+      if (!frames.length) {
+        action('+ Buat motion path', () => updateMotion({
+          ...motion, preset: 'none', keyframes: [
+            { timeSec: 0, x: 0, y: 60, scale: 0.9, opacity: 0 },
+            { timeSec: motion.durationSec, x: 0, y: 0, scale: 1, opacity: 1 }
+          ]
+        }));
+      } else {
+        action('Hapus motion path', () => updateMotion(
+          motion.preset === 'none' ? undefined : {
+            preset: motion.preset, startSec: motion.startSec, durationSec: motion.durationSec
+          }
+        ));
+        const limits = {
+          timeSec: [0, motion.durationSec], x: [-600, 600], y: [-600, 600],
+          scale: [0.1, 3], opacity: [0, 1]
+        };
+        const commitFrames = next => updateMotion({ ...motion, keyframes: next });
+        for (const [index, frame] of frames.entries()) {
+          const group = doc.createElement('fieldset');
+          group.className = 'inspector-group';
+          const legend = doc.createElement('legend');
+          legend.textContent = 'Keyframe ' + (index + 1);
+          group.append(legend);
+          for (const [name, label] of [
+            ['timeSec', 'Waktu (detik)'], ['x', 'X (px)'], ['y', 'Y (px)'],
+            ['scale', 'Skala'], ['opacity', 'Opacity']
+          ]) {
+            const [min, max] = limits[name];
+            const widget = input(doc, 'number', frame[name],
+              { min: String(min), max: String(max), step: 'any' });
+            widget.addEventListener('change', () => {
+              const v = Number(widget.value);
+              const prev = index ? frames[index - 1].timeSec : -1;
+              const next = index < frames.length - 1
+                ? frames[index + 1].timeSec : Infinity;
+              if (!Number.isFinite(v) || v < min || v > max ||
+                (name === 'timeSec' && (v <= prev || v >= next))) {
+                widget.value = frame[name];
+                notify('Keyframe tidak valid atau waktunya tidak berurutan.', 'error');
+                return;
+              }
+              commitFrames(frames.map((item, i) => i === index
+                ? { ...item, [name]: v } : item));
+            });
+            group.append(control(doc, label, widget));
+          }
+          if (frames.length > 2) {
+            const remove = doc.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn btn-ghost btn-sm';
+            remove.textContent = 'Hapus titik ' + (index + 1);
+            remove.addEventListener('click', () =>
+              commitFrames(frames.filter((_, i) => i !== index)));
+            group.append(remove);
+          }
+          elementGroup.append(group);
+        }
+        if (frames.length < 8) action('+ Tambah keyframe', () => {
+          const end = frames[frames.length - 1];
+          const before = frames[frames.length - 2];
+          if (end.timeSec - before.timeSec <= 0.02) {
+            notify('Jarak keyframe terlalu rapat.', 'error');
+            return;
+          }
+          const avg = (field) => (before[field] + end[field]) / 2;
+          commitFrames([
+            ...frames.slice(0, -1),
+            { timeSec: avg('timeSec'), x: avg('x'), y: avg('y'),
+              scale: avg('scale'), opacity: avg('opacity') },
+            end
+          ]);
+        });
       }
   
     }
