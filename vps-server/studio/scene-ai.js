@@ -15,7 +15,7 @@ Use this shape:
   "scenes": [{
     "durationSec": number,
     "transition": { "type": "fade" | "slide" | "none", "durationSec": number },
-    "gestures": [{ "type": "tap" | "swipe", "effect": "none" | "sunburst",
+    "gestures": [{ "type": "tap" | "swipe", "effect": "none" | "sunburst" | "sunburst-soft",
       "startSec": number, "durationSec": number,
       "from": { "x": number, "y": number }, "to": { "x": number, "y": number } }],
     "elements": [{
