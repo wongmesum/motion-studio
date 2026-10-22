@@ -57,6 +57,12 @@ test('portrait 9:16 contains the full landscape template stage with a full-heigh
         assert.equal(geometry.layerW, W);
         assert.equal(geometry.layerH, H);
         assert.ok(geometry.scrollWidth <= W + 1, template + ': page overflows horizontally');
+        if (process.env.MOTION_QA_OUTPUT_DIR) {
+          const qaDir = path.resolve(process.env.MOTION_QA_OUTPUT_DIR);
+          await fs.mkdir(qaDir, { recursive: true });
+          await page.screenshot({ path: path.join(qaDir, template + '-portrait.png'),
+            type: 'png', animations: 'disabled' });
+        }
       } finally { await page.close(); }
     }
   } finally { await browser.close(); }
