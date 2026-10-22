@@ -131,6 +131,18 @@ async function injectMotionPresets(html, project) {
   return injectProjectData(html, '<script id="motion-preset-runtime">\n' + runtime + '\n</script>');
 }
 
+// Contain the unchanged 1920x1080 source stage on output sizes that differ
+// from landscape 1080p. This avoids clipping in 9:16 exports and preview.
+async function injectViewportFit(html, project) {
+  if (project.render.width === 1920 && project.render.height === 1080) return html;
+  if (!['base', 'kinetic-text', 'image-slideshow', 'video-mixer'].includes(project.template)) return html;
+  const runtime = await readFile(new URL('../../render-engine/viewport-fit.js', import.meta.url), 'utf8');
+  const script = '<script id="motion-viewport-fit">\\n' + runtime + '\\n</script>';
+  return /<\\/body>/i.test(html)
+    ? html.replace(/<\\/body>/i, script + '\\n</body>')
+    : html + script;
+}
+
 // Motion Studio embeds only vetted local artwork and a deterministic SVG/Canvas renderer.
 // No remote URLs, arbitrary JSON payloads or third-party scripts enter render HTML.
 async function injectGestureOverlay(html, project) {
@@ -274,7 +286,8 @@ export async function compileProject(input, {
   const withData = injectProjectData(baseHtml, dataScript);
   const withBridge = target === 'preview' ? injectPreviewBridge(withData) : withData;
   const withMotion = await injectMotionPresets(withBridge, resolved);
-  const withGesture = await injectGestureOverlay(withMotion, resolved);
+  const withViewport = await injectViewportFit(withMotion, resolved);
+  const withGesture = await injectGestureOverlay(withViewport, resolved);
   const deterministicHtml = sanitizeHtml(withGesture);
   const warnings = [];
 
