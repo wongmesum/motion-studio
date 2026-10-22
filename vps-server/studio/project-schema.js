@@ -194,7 +194,7 @@ function normalizeVisualElement(element, type) {
     x: normalizeUnit(element.x, 0, 'x'),
     y: normalizeUnit(element.y, 0, 'y'),
     width: normalizeUnit(element.width, 1, 'width'),
-    ...(normalizeMotion(element.motion) ? { motion: normalizeMotion(element.motion) } : {}),
+    ...(element.motion == null ? {} : { motion: normalizeMotion(element.motion) }),
     ...(type === 'video'
       ? {
         muted: element.muted === undefined ? true : Boolean(element.muted),
@@ -254,8 +254,12 @@ function normalizeScene(scene, textBudget) {
     throw new Error('Durasi scene tidak valid');
   }
 
-  for (const element of elements) {
-    if (element?.motion && element.motion.startSec + element.motion.durationSec > durationSec + 0.00001) {
+  // Check normalized values, not the partially specified caller object: both
+  // startSec and durationSec may be omitted and defaulted by normalizeMotion.
+  const normalizedElements = elements.map((element) => normalizeElement(element, textBudget));
+  for (const element of normalizedElements) {
+    if (element.motion &&
+      element.motion.startSec + element.motion.durationSec > durationSec + 0.00001) {
       throw new Error('Animasi elemen melebihi durasi scene');
     }
   }
@@ -269,7 +273,7 @@ function normalizeScene(scene, textBudget) {
     ...(gestures.length ? { gestures: gestures.map((gesture) => normalizeGesture(gesture, durationSec)) } : {}),
     durationSec,
     transition: normalizeTransition(scene?.transition),
-    elements: elements.map((element) => normalizeElement(element, textBudget)),
+    elements: normalizedElements,
   };
 }
 
