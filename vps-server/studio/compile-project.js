@@ -128,7 +128,7 @@ async function injectMotionPresets(html, project) {
     return html;
   }
   const runtime = await readFile(new URL('../../render-engine/motion-presets.js', import.meta.url), 'utf8');
-  return injectProjectData(html, '<script id="motion-preset-runtime">\\n' + runtime + '\\n</script>');
+  return injectProjectData(html, '<script id="motion-preset-runtime">\n' + runtime + '\n</script>');
 }
 
 // Motion Studio embeds only vetted local artwork and a deterministic SVG/Canvas renderer.
