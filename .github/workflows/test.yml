@@ -12,6 +12,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      MOTION_QA_OUTPUT_DIR: artifacts/visual-qa
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,3 +26,11 @@ jobs:
       - run: npm test
       - run: node scripts/smoke-motion-mp4.js
       - run: node scripts/smoke-portrait-mp4.js
+      - name: Upload visual QA screenshots and portrait MP4
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: motion-studio-visual-qa
+          path: artifacts/visual-qa/
+          if-no-files-found: ignore
+          retention-days: 7
