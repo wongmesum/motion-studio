@@ -89,7 +89,9 @@ test('cursor tip and burst stay aligned during tap press and moving swipe in bot
   const art = {
     cursor: JSON.parse(await read('render-engine/lottie/cursor-real-black.json')),
     burst: JSON.parse(await read('render-engine/lottie/click-sunburst-soft-4-sm.json')),
-    burstSoft: JSON.parse(await read('modules/lottie/assets/click-sunburst-soft-xs.json'))
+    burstSoft: JSON.parse(await read('modules/lottie/assets/click-sunburst-soft-xs.json')),
+    burstWide: JSON.parse(await read('modules/lottie/assets/click-sunburst-soft.json')),
+    burstStar: JSON.parse(await read('modules/lottie/assets/click-sunburst.json'))
   };
   for (const [width, height] of [[1920, 1080], [1080, 1920]]) {
     for (const effect of ['sunburst', 'sunburst-soft']) {
