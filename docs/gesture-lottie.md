@@ -111,3 +111,46 @@ of templates, so tap/swipe and both burst effects work on all four templates.
 React/Remotion SceneDirector UI, keyframed editable motion curves, and
 production deployment/portrait video smoke tests. Each new Lottie asset
 requires license provenance and an explicit supported-rendering test.
+
+
+## Per-element keyframe motion (phase 3)
+
+Element motion extends existing schema v1 with an optional keyframe path.
+When present, keyframes supersede an entry preset. Coordinates are in logical
+1920×1080-stage pixels (not direct output pixels); timestamps are relative to
+`motion.startSec`. Interpolation between points is deterministic and linear.
+
+```json
+{
+  "preset": "none",
+  "startSec": 0.25,
+  "durationSec": 1.5,
+  "keyframes": [
+    { "timeSec": 0, "x": -120, "y": 60, "scale": 0.8, "opacity": 0 },
+    { "timeSec": 0.75, "x": 10, "y": 0, "scale": 1.1, "opacity": 1 },
+    { "timeSec": 1.5, "x": 0, "y": 0, "scale": 1, "opacity": 1 }
+  ]
+}
+```
+
+The inspector can add/delete keyframes and edit timing, x/y translation,
+scale, and opacity. Each motion path has 2–8 strictly increasing keyframes.
+Bounds: x/y ±600 px, scale 0.1–3 and opacity 0–1. The whole motion must
+fit in the parent scene. Old preset-only projects still load unchanged.
+
+## Portrait-safe 9:16 compatibility (phase 3)
+
+For output sizes such as **1080×1920** or **720×1280**, the compiler injects
+`render-engine/viewport-fit.js`: it fits the **entire** existing 1920×1080
+logical stage inside the portrait output, preserving text and media without
+clipping or distortion. The remaining area is themed background. SceneDirector
+gesture overlays remain outside the transformed stage and use output-viewport
+coordinates.
+
+This is **letterbox/contain mode**, **not** a portrait-native layout engine.
+Future 9:16 templates should reflow typography, images, safe zones and scene
+geometry specifically for mobile rather than merely scaling a landscape stage.
+
+Browser tests cover output geometry, preview vs export, motion keyframe replay,
+and editor export. CI also renders a short **1080×1920 H.264 MP4** inspected
+with FFprobe. VPS/staging visual QA is still required before deployment.
